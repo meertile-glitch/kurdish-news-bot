@@ -3,7 +3,7 @@ from telegram import Bot
 from telegram.constants import ParseMode
 import logging
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8921906381:AAEtOy3QDFFuwNMxHWeYSA9PsLvlqxQG24I")
-CHANNEL_ID = "@kurdish_hawal_kurti_bot"
+CHANNEL_ID = "@kurdish_short_news"
 RSS_FEEDS = ["https://www.rudaw.net/rss","https://www.kurdistan24.net/en/rss"]
 logging.basicConfig(level=logging.INFO)
 async def fetch_and_send():
