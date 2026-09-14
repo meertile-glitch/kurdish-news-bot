@@ -1,17 +1,29 @@
-name: Kurdish News Bot
+name: Kurdish AI News Bot
+
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '0 6 * * *'
+    - cron: '0 14 * * *'
   workflow_dispatch:
+
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-      - run: pip install -r requirements.txt
-      - run: python bot.py
+      - name: Install deps
+        run: pip install -r requirements.txt
+      - name: Run AI News Bot
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        run: python bot.py
+      - name: Save history
+        run: |
+          git config --local user.email "bot@kurdish-ai.com"
+          git config --local user.name "Kurdish AI Bot"
+          git add sent.txt || true
+          git commit -m "Update $(date)" || true
+          git push || true
