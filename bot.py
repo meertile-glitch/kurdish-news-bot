@@ -17,55 +17,15 @@ if not BOT_TOKEN:
         "نموونە: export BOT_TOKEN='یاریدەدەری_تۆکنی_تۆ'"
     )
 
-# ===== سەرچاوە جیهانیەکان - هەموو جیهان دەگەڕێت =====
+# ===== سەرچاوە بەناوبانگ و پسپۆڕی هەواڵی AI (بەبێ گەڕانی گشتی) =====
 MEGA_AI_FEEDS = {
-    # 🌍 Google News - هەزاران وێبسایت دەگەڕێت بۆ AI
-    "Google News AI World": "https://news.google.com/rss/search?q=artificial+intelligence+AI+ChatGPT+OpenAI&hl=en-US&gl=US&ceid=US:en",
-    "Google News AI Tech": "https://news.google.com/rss/search?q=OpenAI+Google+Gemini+Anthropic+AI+model&hl=en-US&gl=US&ceid=US:en",
-    "Google News Yapay Zeka": "https://news.google.com/rss/search?q=yapay+zeka+ChatGPT+OpenAI&hl=tr&gl=TR&ceid=TR:tr",
-    "Google News AI Chips": "https://news.google.com/rss/search?q=Nvidia+AI+chip+ChatGPT+Sora&hl=en-US&gl=US&ceid=US:en",
-
-    # 🤖 بلاگی کۆمپانیا گەورەکان - ڕاستەوخۆ
-    "OpenAI News": "https://news.google.com/rss/search?q=site:openai.com&hl=en-US&gl=US&ceid=US:en",
-    "Google DeepMind": "https://news.google.com/rss/search?q=DeepMind+Google+AI&hl=en-US&gl=US&ceid=US:en",
-    "Meta AI News": "https://news.google.com/rss/search?q=Meta+AI+Llama&hl=en-US&gl=US&ceid=US:en",
-
-    # 📰 تەکنەلۆژیا - AI تایبەت
+    "MIT Technology Review AI": "https://www.technologyreview.com/topic/artificial-intelligence/feed/",
     "TechCrunch AI": "https://techcrunch.com/category/artificial-intelligence/feed/",
     "VentureBeat AI": "https://venturebeat.com/category/ai/feed/",
     "The Verge AI": "https://www.theverge.com/rss/ai/index.xml",
-    "MIT Tech Review AI": "https://www.technologyreview.com/topic/artificial-intelligence/feed/",
     "Wired AI": "https://www.wired.com/feed/tag/ai/latest/rss",
-    "Ars Technica": "https://feeds.arstechnica.com/civis/feat-ars-technica-ai",
-    "ZDNet AI": "https://www.zdnet.com/topic/artificial-intelligence/rss.xml",
-    "The Next Web AI": "https://thenextweb.com/feed/",
     "AI News": "https://www.artificialintelligence-news.com/feed/",
     "MarkTechPost": "https://www.marktechpost.com/feed/",
-    "Analytics Vidhya": "https://www.analyticsvidhya.com/blog/feed/",
-    "Towards Data Science": "https://towardsdatascience.com/feed",
-
-    # 🇹🇷 تورکیا - تەکنەلۆژیا و AI
-    "Anadolu Tech": "https://www.aa.com.tr/tr/rss/default?cat=bilim-teknoloji",
-    "NTV Tech": "https://www.ntv.com.tr/teknoloji.rss",
-    "Haberturk Tech": "https://www.haberturk.com/rss/kategori/teknoloji.xml",
-    "Webrazzi": "https://webrazzi.com/feed/",
-    "ShiftDelete": "https://shiftdelete.net/feed",
-    "DonanimHaber": "https://www.donanimhaber.com/rss/teknoloji-haberleri",
-    "CNN Turk Tech": "https://www.cnnturk.com/feed/rss/teknoloji/news",
-
-    # 🌐 هەواڵی جیهانی - تەکنەلۆژیا
-    "BBC Tech": "http://feeds.bbci.co.uk/news/technology/rss.xml",
-    "Guardian Tech": "https://www.theguardian.com/technology/rss",
-    "CNN Tech": "http://rss.cnn.com/rss/edition_technology.rss",
-    "NYTimes Tech": "https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml",
-    "Forbes AI": "https://www.forbes.com/innovation/feed/",
-    "Daily Sabah Tech": "https://www.dailysabah.com/rss/science-technology",
-    "TRT World Tech": "https://www.trtworld.com/technology/rss",
-
-    # 🚀 ستارتاپ و AI Tools
-    "Product Hunt AI": "https://www.producthunt.com/feed?category=artificial-intelligence",
-    "Hacker News AI": "https://hnrss.org/newest?q=AI+artificial+intelligence",
-    "Reddit AI": "https://www.reddit.com/r/artificial/.rss",
 }
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
@@ -122,8 +82,8 @@ async def main():
         header = (
             f"🌅 <b>هەواڵی ڕۆژانەی ژیری دەستکرد</b>\n"
             f"📅 {today_kurdish}\n"
-            f"🌍 گەڕان لە چەندین وێبسایتی جیهانی\n"
-            f"🔍 Google News + TechCrunch + BBC + ...\n"
+            f"✅ لە سەرچاوە باوەڕپێکراوەکان\n"
+            f"🔍 MIT Tech Review, TechCrunch, VentureBeat, The Verge...\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
         )
         await bot.send_message(chat_id=CHANNEL_ID, text=header, parse_mode=ParseMode.HTML)
@@ -154,14 +114,13 @@ async def main():
                 if not is_ai(f"{title} {summary}"): continue
 
                 seen_titles.add(title.lower())
-                is_tr = 'tr' in url.lower() or any(x in name for x in ["Anadolu", "NTV", "Haberturk", "Webrazzi", "Donanim", "CNN Turk"])
 
                 collected.append({
                     "title": title,
                     "summary": summary,
                     "link": link,
                     "source": name,
-                    "lang": 'tr' if is_tr else 'en'
+                    "lang": 'en'
                 })
 
                 if len(collected) >= 20:
@@ -200,11 +159,16 @@ async def main():
             if not short or len(short) < 20:
                 short = ku_title[:180]
 
-            if "Google" in item['source']: flag = "🔍"
-            elif "TechCrunch" in item['source']: flag = "🚀"
-            elif "BBC" in item['source'] or "Guardian" in item['source']: flag = "🇬🇧"
-            elif "Anadolu" in item['source'] or "NTV" in item['source']: flag = "🇹🇷"
-            else: flag = "🌍"
+            flags = {
+                "MIT Technology Review AI": "🎓",
+                "TechCrunch AI": "🚀",
+                "VentureBeat AI": "📊",
+                "The Verge AI": "🔺",
+                "Wired AI": "🔌",
+                "AI News": "🤖",
+                "MarkTechPost": "📰",
+            }
+            flag = flags.get(item['source'], "🌍")
 
             text = (
                 f"<b>{i}. {ku_title}</b>\n\n"
