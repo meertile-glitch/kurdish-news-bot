@@ -87,10 +87,14 @@ def to_kurdish(text, src='en'):
                 tr = GoogleTranslator(source=src, target=tgt).translate(text)
                 if tr and len(tr) > 5:
                     return tr
-            except:
+                logging.warning(f"Translation to '{tgt}' returned empty/short result for: {text[:50]}")
+            except Exception as e:
+                logging.error(f"Translation to '{tgt}' failed: {type(e).__name__}: {e}")
                 continue
+        logging.warning(f"All translation targets failed, falling back to original text: {text[:50]}")
         return text
-    except:
+    except Exception as e:
+        logging.error(f"to_kurdish outer exception: {type(e).__name__}: {e}")
         return text
 
 def is_ai(text):
