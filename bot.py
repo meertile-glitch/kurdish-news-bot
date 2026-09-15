@@ -83,16 +83,17 @@ def to_kurdish(text, src='en'):
         text = clean(text)
         if len(text) > 500: text = text[:500]
 
-        # هەوڵدان بە چەند وەرگێڕێک، بۆ ئەگەری بلۆککردنی یەکێکیان
+        # MyMemory یەکەم هەوڵ (Google لە IPـی GitHub Actions بلۆک کراوە)
+        # هەر وەرگێڕێک کۆدی زمانی خۆی هەیە
         attempts = [
-            ("Google", GoogleTranslator, ['ckb', 'ku']),
-            ("MyMemory", MyMemoryTranslator, ['ku-KU', 'ckb']),
+            ("MyMemory", MyMemoryTranslator, "en-US", ['ckb-IQ']),
+            ("Google", GoogleTranslator, src, ['ckb', 'ku']),
         ]
 
-        for engine_name, engine_cls, targets in attempts:
+        for engine_name, engine_cls, engine_src, targets in attempts:
             for tgt in targets:
                 try:
-                    tr = engine_cls(source=src, target=tgt).translate(text)
+                    tr = engine_cls(source=engine_src, target=tgt).translate(text)
                     if tr and len(tr) > 5 and tr.strip().lower() != text.strip().lower():
                         return tr
                     logging.warning(f"[{engine_name}->{tgt}] empty/unchanged result for: {text[:50]}")
