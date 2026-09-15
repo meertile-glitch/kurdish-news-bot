@@ -1,11 +1,8 @@
 name: Kurdish AI News Bot
-
 on:
   schedule:
     - cron: '0 6 * * *'
-    - cron: '0 14 * * *'
   workflow_dispatch:
-
 jobs:
   run-bot:
     runs-on: ubuntu-latest
@@ -19,11 +16,14 @@ jobs:
       - name: Run AI News Bot
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+          FB_TOKEN: ${{ secrets.FB_TOKEN }}
+          FB_ID: ${{ secrets.FB_ID }}
         run: python bot.py
       - name: Save history
         run: |
-          git config --local user.email "bot@kurdish-ai.com"
-          git config --local user.name "Kurdish AI Bot"
-          git add sent.txt || true
-          git commit -m "Update $(date)" || true
+          git config --local user.email "bot@ai.com"
+          git config --local user.name "AI Bot"
+          git add -A || true
+          git commit -m "update history" || true
           git push || true
