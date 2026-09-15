@@ -6,7 +6,7 @@ from datetime import datetime
 from telegram import Bot
 from telegram.constants import ParseMode
 import logging
-from deep_translator import GoogleTranslator
+from deep_translator import GoogleTranslator, MyMemoryTranslator
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "@kurdish_short_news")
@@ -82,16 +82,25 @@ def to_kurdish(text, src='en'):
     try:
         text = clean(text)
         if len(text) > 500: text = text[:500]
-        for tgt in ['ckb', 'ku']:
-            try:
-                tr = GoogleTranslator(source=src, target=tgt).translate(text)
-                if tr and len(tr) > 5:
-                    return tr
-                logging.warning(f"Translation to '{tgt}' returned empty/short result for: {text[:50]}")
-            except Exception as e:
-                logging.error(f"Translation to '{tgt}' failed: {type(e).__name__}: {e}")
-                continue
-        logging.warning(f"All translation targets failed, falling back to original text: {text[:50]}")
+
+        # هەوڵدان بە چەند وەرگێڕێک، بۆ ئەگەری بلۆککردنی یەکێکیان
+        attempts = [
+            ("Google", GoogleTranslator, ['ckb', 'ku']),
+            ("MyMemory", MyMemoryTranslator, ['ku-KU', 'ckb']),
+        ]
+
+        for engine_name, engine_cls, targets in attempts:
+            for tgt in targets:
+                try:
+                    tr = engine_cls(source=src, target=tgt).translate(text)
+                    if tr and len(tr) > 5 and tr.strip().lower() != text.strip().lower():
+                        return tr
+                    logging.warning(f"[{engine_name}->{tgt}] empty/unchanged result for: {text[:50]}")
+                except Exception as e:
+                    logging.error(f"[{engine_name}->{tgt}] failed: {type(e).__name__}: {e}")
+                    continue
+
+        logging.warning(f"All translation engines failed, falling back to original text: {text[:50]}")
         return text
     except Exception as e:
         logging.error(f"to_kurdish outer exception: {type(e).__name__}: {e}")
