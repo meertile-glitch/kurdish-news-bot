@@ -96,7 +96,37 @@ def cl(t):
     if not t:
         return ""
     t = re.sub('<[^<]+?>', '', t)
-    return re.sub(r'\s+', ' ', t).strip()[:500]
+    # Remove emojis that cause [] boxes - Kurdish fonts don't support emojis
+    import re as re2
+    # Remove emojis
+    emoji_pattern = re2.compile("["
+        u"\U0001F600-\U0001F64F"  # emoticons
+        u"\U0001F300-\U0001F5FF"  # symbols & pictographs
+        u"\U0001F680-\U0001F6FF"  # transport & map symbols
+        u"\U0001F1E0-\U0001F1FF"  # flags
+        u"\U00002500-\U00002BEF"  # chinese char
+        u"\U00002702-\U000027B0"
+        u"\U000024C2-\U0001F251"
+        u"\U0001f926-\U0001f937"
+        u"\U00010000-\U0010ffff"
+        u"\u2640-\u2642"
+        u"\u2600-\u2B55"
+        u"\u200d"
+        u"\u23cf"
+        u"\u23e9"
+        u"\u231a"
+        u"\ufe0f"
+        u"\u3030"
+        "]+", flags=re2.UNICODE)
+    t = emoji_pattern.sub('', t)
+    # Fix underscores that cause broken text like وێنۆک_ئەڵقەی
+    t = t.replace('_', ' ')
+    # Remove brackets [] that cause boxes
+    t = t.replace('[', ' ').replace(']', ' ')
+    t = t.replace('📄', '').replace('📃', '').replace('📝', '').replace('🔥', '').replace('✨', '').replace('⚡', '')
+    # Clean multiple spaces
+    t = re2.sub(r'\s+', ' ', t).strip()[:500]
+    return t
 
 def tr_mem(txt, src='en', tgt='ckb'):
     try:
@@ -308,7 +338,8 @@ def card(title, summary, out="card.jpg"):
             print(f"Reshape error: {e}")
             return text
 
-    tl = title[:130].strip()
+    # Clean title - remove [] and _ that cause broken text
+    tl = title[:130].strip().replace("_", " ").replace("[", "").replace("]", "").replace("📄", "").replace("📃", "").strip()
     words = tl.split()
     lines = []
     cur = ""
@@ -342,7 +373,7 @@ def card(title, summary, out="card.jpg"):
         draw.text((x_center, y_pos), l_disp, fill="white", font=fb_ku)
 
     if summary:
-        sm = summary[:120].strip()
+        sm = summary[:120].strip().replace("_", " ").replace("[", "").replace("]", "").strip()
         words_s = sm.split()
         sw = []
         cur_s = ""
