@@ -73,17 +73,41 @@ def card(title,summary,out="card.jpg"):
  base=Image.open(TPL).convert('RGB').resize((W,H)) if os.path.exists(TPL) else Image.new('RGB',(W,H),(7,10,30))
  img=base.copy()
  draw=ImageDraw.Draw(img,'RGBA')
- # فۆنتی کوردی - سەرەتا لە repo، دواتر system
- def load_font(names,sizes):
+ # فۆنتی کوردی - لەگەڵ RAQM بۆ پێکەوەنووسین
+ try:
+  from PIL import ImageFont
+  try:
+   # RAQM - باشترین بۆ کوردی/عەرەبی
+   LAYOUT=ImageFont.Layout.RAQM
+  except:
+   try: LAYOUT=ImageFont.Layout.BASIC
+   except: LAYOUT=None
+ except: LAYOUT=None
+ 
+ def load_font(names,size):
   for n in names:
-   for p in [f"./{n}",f"./fonts/{n}",f"/usr/share/fonts/google-droid-sans-fonts/{n}",f"/usr/share/fonts/truetype/noto/{n}",f"/usr/share/fonts/opentype/noto/{n}",f"/usr/share/fonts/noto/{n}"]:
+   for p in [f"./{n}",f"./fonts/{n}",f"/usr/share/fonts/google-droid-sans-fonts/{n}",f"/usr/share/fonts/truetype/noto/{n}",f"/usr/share/fonts/opentype/noto/{n}",f"/usr/share/fonts/noto/{n}",f"/usr/share/fonts/truetype/dejavu/{n}",f"/usr/share/fonts/{n}"]:
     if os.path.exists(p):
-     try: return ImageFont.truetype(p,sizes)
+     try:
+      if LAYOUT is not None:
+       return ImageFont.truetype(p,size,layout_engine=LAYOUT)
+      else:
+       return ImageFont.truetype(p,size)
      except: continue
-  return ImageFont.load_default()
- fb=load_font(["DroidKufi-Bold.ttf","NotoNaskhArabic-Bold.ttf","NotoKufiArabic-Bold.ttf"],42)
- fr=load_font(["DroidKufi-Regular.ttf","NotoNaskhArabic-Regular.ttf","NotoKufiArabic-Regular.ttf"],26)
+  # fallback
+  try:
+   if LAYOUT is not None:
+    return ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf",size,layout_engine=LAYOUT)
+   else:
+    return ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf",size)
+  except:
+   return ImageFont.load_default()
+ 
+ # Noto باشترە لە DroidKufi بۆ RAQM
+ fb=load_font(["NotoNaskhArabic-Bold.ttf","NotoKufiArabic-Bold.ttf","DroidKufi-Bold.ttf","NotoKufiArabic-Regular.ttf"],44)
+ fr=load_font(["NotoNaskhArabic-Regular.ttf","NotoKufiArabic-Regular.ttf","DroidKufi-Regular.ttf"],26)
  fs=load_font(["DejaVuSans.ttf","NotoSans-Regular.ttf"],20)
+ 
  # logo
  x,y=45,40
  draw.ellipse([x,y,x+100,y+100],fill=(255,108,20))
@@ -101,25 +125,32 @@ def card(title,summary,out="card.jpg"):
  draw=ImageDraw.Draw(img)
  for i in range(3):
   draw.rounded_rectangle([cx-i,cy-i,cx+cw+i,cy+ch+i],radius=32+i,outline=(120+i*10,85,255),width=1)
- # title
- tl=title[:130]
+ # title - کوردی ڕاستەقینە - بەبێ reshaper چونکە RAQM خۆی دروستی دەکات
+ tl=title[:130].strip()
+ # بۆ کوردی - wrap بە وشە نەک پیت
+ import textwrap
  wr=textwrap.wrap(tl,width=26)[:4]
  sy=cy+110
  for i,l in enumerate(wr):
-  dl=prep_ku(l)
+  if not l.strip(): continue
+  # RAQM خۆی RTL و shaping دەکات - پێویست ناکات reshape
+  dl=l
   try:
-   tw=draw.textbbox((0,0),dl,font=fb)[2]
+   bbox=draw.textbbox((0,0),dl,font=fb)
+   tw=bbox[2]-bbox[0]
   except: tw=len(dl)*18
-  draw.text((W//2-tw//2,sy+i*68),dl,fill="white",font=fb)
+  draw.text((W//2-tw//2,sy+i*68),dl,fill="white",font=fb,embedded_color=False)
  # summary
  if summary:
-  sm=summary[:130]
+  sm=summary[:130].strip()
   sw=textwrap.wrap(sm,width=34)[:2]
   sy2=sy+len(wr)*68+35
   for j,l in enumerate(sw):
-   dl=prep_ku(l)
+   if not l.strip(): continue
+   dl=l
    try:
-    tw=draw.textbbox((0,0),dl,font=fr)[2]
+    bbox=draw.textbbox((0,0),dl,font=fr)
+    tw=bbox[2]-bbox[0]
    except: tw=len(dl)*12
    draw.text((W//2-tw//2,sy2+j*40),dl,fill=(210,220,255),font=fr)
  ly=cy+ch-130
