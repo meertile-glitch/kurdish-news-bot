@@ -1,7 +1,8 @@
-name: Kurdish AI News
+name: Kurdish AI News - Telegram + Facebook
+
 on:
   schedule:
-    - cron: '0 */3 * * *' # هەر 3 کاتژمێر جارێک
+    - cron: '0 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -9,23 +10,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Setup Python
-        uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          cache: 'pip'
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
       - name: Install Kurdish Fonts + RAQM
         run: |
-          sudo apt-get update && sudo apt-get install -y libraqm0 fonts-noto
-          pip install Vazirmatn
+          sudo apt-get update -qq
+          sudo apt-get install -y libraqm0 libfribidi0 libharfbuzz0b fonts-noto-core fonts-noto fonts-noto-naskh-arabic fonts-noto-kufi-arabic fonts-dejavu-core -qq 2>/dev/null || true
+          mkdir -p /tmp/fonts
+          cd /tmp/fonts
+          wget -q https://github.com/rastikerdar/vazirmatn/releases/download/v33.003/Vazirmatn-fonts.zip -O vazir.zip || true
+          unzip -o vazir.zip "*.ttf" -d. 2>/dev/null || true
+          sudo mkdir -p /usr/share/fonts/truetype/noto/
+          sudo cp /tmp/fonts/*.ttf /usr/share/fonts/truetype/noto/ 2>/dev/null || true
+          sudo cp /tmp/fonts/Vazirmatn/*.ttf /usr/share/fonts/truetype/noto/ 2>/dev/null || true
+          fc-cache -fv > /dev/null
 
       - name: Install deps
         run: |
-          pip install -r requirements.txt
-          # requirements.txt دەبێت ئەمانەی تێدابێت:
-          # feedparser requests python-telegram-bot Pillow arabic-reshaper python-bidi deep-translator
+          pip install -r requirements.txt -q
+          pip install --upgrade --force-reinstall Pillow -q
+          python -c "from PIL import features; print('RAQM:', features.check('raqm')); print('HarfBuzz:', features.check('harfbuzz'))"
 
       - name: Run Bot
         env:
@@ -33,13 +43,16 @@ jobs:
           CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
-        run: |
-          python main.py
+          FB_ID: ${{ secrets.FB_ID }}
+          FB_TOKEN: ${{ secrets.FB_TOKEN }}
+        run: python bot.py
 
       - name: Save history
+        if: always()
         run: |
-          git config user.name "bot"
-          git config user.email "bot@ai.news.krd"
+          git config --local user.email "bot@kurdish-ai.com"
+          git config --local user.name "Kurdish AI Bot"
           git add sent.txt || true
-          git diff --staged --quiet || git commit -m "update sent history"
-          git push || echo "nothing to push"
+          git commit -m "Update sent $(date -u)" || true
+          git pull --rebase origin main || true
+          git push || true
