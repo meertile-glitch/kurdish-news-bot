@@ -62,73 +62,74 @@ def is_ai(t):
  return any(x in t.lower() for x in k)
 
 def create_beautiful_background(W,H):
- """Create the beautiful tech background like the image - neural sphere + circuit + bokeh"""
- img = Image.new('RGB',(W,H),(5,8,25))
+ """Ultra beautiful background - premium tech like original Coming Soon but even better"""
+ img = Image.new('RGB',(W,H),(4,6,22))
  draw = ImageDraw.Draw(img,'RGBA')
- # Gradient dark background
  for y in range(H):
-  r = int(5 + y*0.02)
-  g = int(8 + y*0.015)
-  b = int(25 + y*0.03)
+  r = int(4 + y*0.02 + math.sin(y*0.01)*2)
+  g = int(6 + y*0.025)
+  b = int(22 + y*0.06 + math.sin(y*0.008)*5)
   draw.line([(0,y),(W,y)],fill=(r,g,b))
- # Bokeh lights
- for _ in range(80):
-  x = random.randint(0,W)
-  y = random.randint(0,H)
-  s = random.randint(3,25)
-  alpha = random.randint(10,60)
-  c = random.choice([(80,60,255),(60,100,255),(120,80,255),(60,180,255)])
+ for _ in range(150):
+  x = random.randint(-50,W+50)
+  y = random.randint(-50,H+50)
+  s = random.randint(6,45)
+  alpha = random.randint(20,90)
+  c = random.choice([(100,80,255),(80,130,255),(140,90,255),(70,200,255),(110,90,230),(60,180,220)])
   draw.ellipse([x-s,y-s,x+s,y+s],fill=(c[0],c[1],c[2],alpha))
- # Circuit patterns - left side
- for _ in range(25):
+  if s > 20 and random.random() > 0.6:
+   draw.ellipse([x-s//3,y-s//3,x+s//3,y+s//3],fill=(200,180,255,alpha+30))
+ for _ in range(45):
   x = random.randint(0,W//3)
   y = random.randint(0,H)
-  draw.rectangle([x,y,x+random.randint(20,80),y+2],fill=(40,60,120,80))
-  draw.rectangle([x,y,x+2,y+random.randint(20,80)],fill=(40,60,120,80))
- # Neural network sphere - top right like in image
+  w = random.randint(60,180)
+  draw.rectangle([x,y,x+w,y+2],fill=(50,75,140,80))
+  draw.rectangle([x,y,x+2,y+random.randint(60,180)],fill=(50,75,140,80))
+  if random.random() > 0.4:
+   draw.ellipse([x+w-3,y-3,x+w+3,y+3],fill=(80,110,200,100))
+ for _ in range(60):
+  x = random.randint(0,W)
+  y = random.randint(int(H*0.65),H)
+  w = random.randint(70,220)
+  draw.rectangle([x,y,x+w,y+1],fill=(40,65,120,70))
  cx_sphere = int(W*0.82)
- cy_sphere = int(H*0.32)
- radius = 260
+ cy_sphere = int(H*0.25)
+ radius = 380
  points = []
- for _ in range(120):
-  # Random points on sphere
+ for _ in range(280):
   theta = random.uniform(0, 2*math.pi)
-  phi = random.uniform(0, math.pi)
-  # Only show front hemisphere + some back
-  if random.random() > 0.3:
-   r = radius * (0.8 + random.random()*0.2)
-   x = cx_sphere + r * math.sin(phi) * math.cos(theta)
-   y = cy_sphere + r * math.sin(phi) * math.sin(theta) * 0.7
-   # Perspective
-   z = r * math.cos(phi)
-   if z > -radius*0.5:
-    points.append((x,y,z))
- # Draw connections
+  phi = random.uniform(0, math.pi*0.85)
+  r = radius * (0.88 + random.random()*0.22)
+  x = cx_sphere + r * math.sin(phi) * math.cos(theta)
+  y = cy_sphere + r * math.sin(phi) * math.sin(theta) * 0.7
+  z = r * math.cos(phi)
+  if z > -radius*0.4:
+   points.append((x,y,z))
  for i,(x1,y1,z1) in enumerate(points):
   for j in range(i+1, len(points)):
    x2,y2,z2 = points[j]
    dist = math.sqrt((x1-x2)**2 + (y1-y2)**2)
-   if dist < 90 and z1 > -50 and z2 > -50:
-    alpha = int(100 - dist)
+   if dist < 130 and z1 > -60 and z2 > -60:
+    alpha = int(160 - dist*0.7)
     if alpha > 20:
-     draw.line([(x1,y1),(x2,y2)],fill=(100,120,255,alpha),width=1)
- # Draw points glowing
+     if dist < 60:
+      draw.line([(x1,y1),(x2,y2)],fill=(150,120,255,alpha),width=1)
+     else:
+      draw.line([(x1,y1),(x2,y2)],fill=(100,140,255,alpha),width=1)
  for x,y,z in points:
-  if z > -50:
-   s = 3 if z > 50 else 2
-   glow = int(150 + z*0.3)
-   glow = max(50, min(255, glow))
-   draw.ellipse([x-s,y-s,x+s,y+s],fill=(glow,glow,255,200))
-   # Outer glow
-   draw.ellipse([x-s*2,y-s*2,x+s*2,y+s*2],fill=(80,80,255,40))
- # Circuit floor - bottom
- for _ in range(40):
-  x = random.randint(0,W)
-  y = random.randint(int(H*0.75),H)
-  draw.rectangle([x,y,x+random.randint(30,120),y+1],fill=(30,50,100,60))
-  if random.random() > 0.7:
-   draw.rectangle([x,y,x+1,y+random.randint(10,30)],fill=(30,50,100,60))
+  if z > -60:
+   s = 5 if z > 100 else 4
+   if z > 180:
+    s = 6
+   draw.ellipse([x-s,y-s,x+s,y+s],fill=(240,220,255,255))
+   draw.ellipse([x-s*2,y-s*2,x+s*2,y+s*2],fill=(140,120,255,90))
+   draw.ellipse([x-s*3.5,y-s*3.5,x+s*3.5,y+s*3.5],fill=(100,80,200,35))
+   draw.ellipse([x-s*5,y-s*5,x+s*5,y+s*5],fill=(80,60,180,15))
+   if z > 120 and random.random() > 0.5:
+    draw.ellipse([x-1,y-1,x+1,y+1],fill=(255,255,255,255))
  return img
+
+
 
 def card(title,summary,out="card.jpg"):
  W,H=1080,1080
@@ -153,31 +154,55 @@ def card(title,summary,out="card.jpg"):
   LAYOUT=None
 
  def find_font(names):
-  for d in ["/usr/share/fonts/truetype/noto","/usr/share/fonts/opentype/noto","/usr/share/fonts/truetype/dejavu","/usr/share/fonts/google-droid-sans-fonts","/usr/share/fonts","./","./fonts"]:
+  for d in ["/usr/share/fonts/truetype/noto","/usr/share/fonts/opentype/noto","/usr/share/fonts/truetype/dejavu","/usr/share/fonts/google-droid-sans-fonts","/usr/share/fonts","./","./fonts","/tmp/fonts"]:
    for n in names:
     p=os.path.join(d,n)
     if os.path.exists(p):
      return p
   return None
 
+ # === BEAUTIFUL KURDISH FONTS - like Rudaw/NRT ===
+ # Title: NotoKufiArabic-Bold (geometric, modern, beautiful for Kurdish headlines)
+ # This is the font used by many Kurdish news sites - very beautiful
  en_bold = find_font(["DejaVuSans-Bold.ttf","DejaVuSans.ttf"]) or "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
  en_reg = find_font(["DejaVuSans.ttf"]) or "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
- ku_bold = find_font(["NotoNaskhArabic-Bold.ttf","NotoKufiArabic-Bold.ttf","NotoNaskhArabic-Regular.ttf"]) or en_bold
- ku_reg = find_font(["NotoNaskhArabic-Regular.ttf","NotoKufiArabic-Regular.ttf"]) or en_reg
+ # Kurdish beautiful fonts priority - Kufi is more beautiful than Naskh for titles
+ ku_bold_candidates = [
+  "NotoKufiArabic-Bold.ttf",      # Most beautiful for headlines - modern geometric
+  "Vazirmatn-Bold.ttf",           # Very beautiful Persian/Kurdish font
+  "NotoNaskhArabic-Bold.ttf",     # Beautiful Naskh
+  "DroidKufi-Bold.ttf",           # Fallback old
+  "DejaVuSans-Bold.ttf"
+ ]
+ ku_reg_candidates = [
+  "NotoKufiArabic-Regular.ttf",
+  "NotoKufiArabic-Medium.ttf",
+  "Vazirmatn-Regular.ttf",
+  "NotoNaskhArabic-Regular.ttf",
+  "DroidKufi-Regular.ttf"
+ ]
+ ku_bold = find_font(ku_bold_candidates) or en_bold
+ ku_reg = find_font(ku_reg_candidates) or en_reg
+ print(f"Using beautiful Kurdish fonts: Bold={ku_bold} Regular={ku_reg}")
 
- def load(p,size):
+ def load(p,size, beautiful=False):
   try:
    if LAYOUT:
-    return ImageFont.truetype(p,size,layout_engine=LAYOUT)
+    font = ImageFont.truetype(p,size,layout_engine=LAYOUT)
    else:
-    return ImageFont.truetype(p,size)
-  except:
+    font = ImageFont.truetype(p,size)
+   return font
+  except Exception as e:
+   print(f"Font load fail {p}: {e}")
    return ImageFont.load_default()
 
- fb_en = load(en_bold,44)
- fs_en = load(en_reg,20)
- fb_ku = load(ku_bold,44) if ku_bold else fb_en
- fr_ku = load(ku_reg,26) if ku_reg else fs_en
+ # Beautiful sizes - larger and bolder for beauty
+ fb_en = load(en_bold,46)
+ fs_en = load(en_reg,22)
+ # Kurdish - BIGGER and more beautiful
+ fb_ku = load(ku_bold,58) if ku_bold else fb_en  # 58px - very big and beautiful like Rudaw
+ fr_ku = load(ku_reg,34) if ku_reg else fs_en   # 34px for summary
+
 
  # Logo - top left like image
  x,y=45,40
@@ -187,10 +212,10 @@ def card(title,summary,out="card.jpg"):
  draw.text((x+130,y+44),"KURDISH",fill="white",font=fs_en)
 
  # Glass card - center like image with neon border
- cw,ch=860,700
- cx,cy=(W-cw)//2,(H-ch)//2+35
+ cw,ch=880,680
+ cx,cy=(W-cw)//2,(H-ch)//2+40
  # Glass effect
- glass = Image.new('RGBA',(cw,ch),(20,25,60,110))
+ glass = Image.new('RGBA',(cw,ch),(28,32,68,75))
  mask = Image.new('L',(cw,ch),0)
  ImageDraw.Draw(mask).rounded_rectangle([0,0,cw,ch],radius=32,fill=255)
  glass.putalpha(mask)
@@ -198,7 +223,7 @@ def card(title,summary,out="card.jpg"):
  bg_crop = img.crop((cx,cy,cx+cw,cy+ch)).filter(ImageFilter.GaussianBlur(2)) if 'ImageFilter' in dir(Image) else img.crop((cx,cy,cx+cw,cy+ch))
  try:
   from PIL import ImageFilter
-  bg_crop = img.crop((cx,cy,cx+cw,cy+ch)).filter(ImageFilter.GaussianBlur(3))
+  bg_crop = img.crop((cx,cy,cx+cw,cy+ch)).filter(ImageFilter.GaussianBlur(12))
   img.paste(bg_crop,(cx,cy))
  except:
   pass
@@ -211,31 +236,41 @@ def card(title,summary,out="card.jpg"):
  # Inner highlight
  draw.rounded_rectangle([cx+8,cy+8,cx+cw-8,cy+ch-8],radius=26,outline=(180,180,255,60),width=1)
 
- # Title - white like "Coming Soon"
+ # Title - ULTRA BEAUTIFUL with purple stroke like premium Rudaw/NRT
  tl=title[:130].strip()
- wr=textwrap.wrap(tl,width=26)[:4]
- sy=cy+110
+ wr=textwrap.wrap(tl,width=22)[:4]
+ sy=cy+70
  for i,l in enumerate(wr):
   if not l.strip(): continue
   try:
    bbox=draw.textbbox((0,0),l,font=fb_ku)
    tw=bbox[2]-bbox[0]
-  except: tw=len(l)*18
-  draw.text((W//2-tw//2+2,sy+i*68+2),l,fill=(0,0,0,180),font=fb_ku)
-  draw.text((W//2-tw//2,sy+i*68),l,fill="white",font=fb_ku)
+  except: tw=len(l)*22
+  x_center = W//2 - tw//2
+  y_pos = sy + i*82
+  # 1. Deep shadow for depth
+  draw.text((x_center+5,y_pos+5),l,fill=(0,0,0,230),font=fb_ku)
+  # 2. Purple glow outline - 8 directions for beautiful stroke effect
+  for dx, dy in [(-2,-2),(-2,2),(2,-2),(2,2),(-2,0),(2,0),(0,-2),(0,2)]:
+   draw.text((x_center+dx,y_pos+dy),l,fill=(140,100,255,140),font=fb_ku)
+  # 3. Extra purple outer glow
+  for dx, dy in [(-3,0),(3,0),(0,-3),(0,3)]:
+   draw.text((x_center+dx,y_pos+dy),l,fill=(120,80,220,80),font=fb_ku)
+  # 4. Main beautiful white
+  draw.text((x_center,y_pos),l,fill="white",font=fb_ku)
 
  if summary:
-  sm=summary[:130].strip()
-  sw=textwrap.wrap(sm,width=34)[:2]
-  sy2=sy+len(wr)*68+35
+  sm=summary[:120].strip()
+  sw=textwrap.wrap(sm,width=32)[:2]
+  sy2=sy+len(wr)*82+40
   for j,l in enumerate(sw):
    if not l.strip(): continue
    try:
     bbox=draw.textbbox((0,0),l,font=fr_ku)
     tw=bbox[2]-bbox[0]
-   except: tw=len(l)*12
-   draw.text((W//2-tw//2+1,sy2+j*40+1),l,fill=(0,0,0,130),font=fr_ku)
-   draw.text((W//2-tw//2,sy2+j*40),l,fill=(210,220,255),font=fr_ku)
+   except: tw=len(l)*14
+   draw.text((W//2-tw//2+1,sy2+j*46+1),l,fill=(0,0,0,150),font=fr_ku)
+   draw.text((W//2-tw//2,sy2+j*46),l,fill=(220,225,255),font=fr_ku)
 
  ly=cy+ch-130
  draw.line([cx+60,ly,cx+cw-60,ly],fill=(100,180,255,120),width=1)
@@ -290,12 +325,17 @@ async def main():
  trans=[]
  for it in sel:
   try:
-   kt=to_ku(it['title'],it['lang']); ks=to_ku(it['summary'],it['lang']) if it['summary'] else ""
-   trans.append({**it,"ku_title":kt[:140],"ku_summary":ks[:140]})
-   await asyncio.sleep(1)
+   kt=to_ku(it['title'],it['lang'])
+   # Only use summary if it's different from title
+   sum_raw = it['summary'][:160] if it['summary'] else ""
+   if sum_raw and sum_raw[:35].lower() != it['title'][:35].lower():
+    ks=to_ku(sum_raw,it['lang'])
+   else:
+    ks=""
+   trans.append({**it,"ku_title":kt[:140],"ku_summary":ks[:110]})
   except:
-   trans.append({**it,"ku_title":it['title'],"ku_summary":it['summary'][:140]})
- for it in trans:
+   trans.append({**it,"ku_title":it['title'][:140],"ku_summary":""})
+for it in trans:
   cp=f"c_{it['hash']}.jpg"
   try: card(it['ku_title'],it['ku_summary'],cp)
   except Exception as e:
