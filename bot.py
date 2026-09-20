@@ -73,12 +73,17 @@ def card(title,summary,out="card.jpg"):
  base=Image.open(TPL).convert('RGB').resize((W,H)) if os.path.exists(TPL) else Image.new('RGB',(W,H),(7,10,30))
  img=base.copy()
  draw=ImageDraw.Draw(img,'RGBA')
- try:
-  fb=ImageFont.truetype("/usr/share/fonts/google-droid-sans-fonts/DroidKufi-Bold.ttf",42)
-  fr=ImageFont.truetype("/usr/share/fonts/google-droid-sans-fonts/DroidKufi-Regular.ttf",26)
-  fs=ImageFont.truetype("/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf",20)
- except:
-  fb=fr=fs=ImageFont.load_default()
+ # فۆنتی کوردی - سەرەتا لە repo، دواتر system
+ def load_font(names,sizes):
+  for n in names:
+   for p in [f"./{n}",f"./fonts/{n}",f"/usr/share/fonts/google-droid-sans-fonts/{n}",f"/usr/share/fonts/truetype/noto/{n}",f"/usr/share/fonts/opentype/noto/{n}",f"/usr/share/fonts/noto/{n}"]:
+    if os.path.exists(p):
+     try: return ImageFont.truetype(p,sizes)
+     except: continue
+  return ImageFont.load_default()
+ fb=load_font(["DroidKufi-Bold.ttf","NotoNaskhArabic-Bold.ttf","NotoKufiArabic-Bold.ttf"],42)
+ fr=load_font(["DroidKufi-Regular.ttf","NotoNaskhArabic-Regular.ttf","NotoKufiArabic-Regular.ttf"],26)
+ fs=load_font(["DejaVuSans.ttf","NotoSans-Regular.ttf"],20)
  # logo
  x,y=45,40
  draw.ellipse([x,y,x+100,y+100],fill=(255,108,20))
