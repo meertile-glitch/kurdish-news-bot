@@ -230,40 +230,47 @@ def card(title, summary, out="card.jpg"):
     print(f"Using CODE beautiful AI tech background")
     img = base.copy()
     draw = ImageDraw.Draw(img, 'RGBA')
-    try:
-        LAYOUT = ImageFont.Layout.RAQM
-    except:
-        LAYOUT = None
 
     def find_font(names):
-        for d in ["/usr/share/fonts/truetype/noto", "/usr/share/fonts/opentype/noto", "/usr/share/fonts/truetype/dejavu", "/usr/share/fonts/google-droid-sans-fonts", "/usr/share/fonts", "./", "./fonts", "/tmp/fonts"]:
+        for d in ["/usr/share/fonts/truetype/noto", "/usr/share/fonts/opentype/noto", "/usr/share/fonts/truetype/dejavu", "/usr/share/fonts/google-droid-sans-fonts", "/usr/share/fonts", "./", "./fonts", "/tmp/fonts", "/usr/share/fonts/truetype"]:
             for n in names:
                 p = os.path.join(d, n)
                 if os.path.exists(p):
                     return p
         return None
 
-    def load(p, size):
+    def load_en(p, size):
+        # English - can use RAQM, no problem
         try:
-            if LAYOUT:
-                return ImageFont.truetype(p, size, layout_engine=LAYOUT)
-            else:
+            from PIL import ImageFont
+            try:
+                L = ImageFont.Layout.RAQM
+                return ImageFont.truetype(p, size, layout_engine=L)
+            except:
                 return ImageFont.truetype(p, size)
+        except:
+            return ImageFont.load_default()
+
+    def load_ku(p, size):
+        # Kurdish - DO NOT use RAQM if we use reshaper - causes broken disconnected letters!
+        # Use simple truetype without layout_engine
+        try:
+            return ImageFont.truetype(p, size)
         except:
             return ImageFont.load_default()
 
     en_bold = find_font(["DejaVuSans-Bold.ttf", "DejaVuSans.ttf"]) or "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
     en_reg = find_font(["DejaVuSans.ttf"]) or "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-    ku_bold_candidates = ["Vazirmatn-Bold.ttf", "Vazirmatn-Medium.ttf", "NotoNaskhArabic-Bold.ttf", "NotoKufiArabic-Bold.ttf"]
-    ku_reg_candidates = ["Vazirmatn-Regular.ttf", "NotoNaskhArabic-Regular.ttf", "NotoKufiArabic-Regular.ttf"]
+    ku_bold_candidates = ["Vazirmatn-Bold.ttf", "Vazirmatn-Medium.ttf", "NotoNaskhArabic-Bold.ttf", "NotoKufiArabic-Bold.ttf", "DejaVuSans-Bold.ttf"]
+    ku_reg_candidates = ["Vazirmatn-Regular.ttf", "Vazirmatn-Medium.ttf", "NotoNaskhArabic-Regular.ttf", "NotoKufiArabic-Regular.ttf"]
     ku_bold = find_font(ku_bold_candidates)
     ku_reg = find_font(ku_reg_candidates)
     print(f"Kurdish font: {ku_bold}")
 
-    fb_en = load(en_bold, 48)
-    fs_en = load(en_reg, 22)
-    fb_ku = load(ku_bold, 50) if ku_bold else fb_en
-    fr_ku = load(ku_reg, 30) if ku_reg else fs_en
+    fb_en = load_en(en_bold, 48)
+    fs_en = load_en(en_reg, 22)
+    fb_ku = load_ku(ku_bold, 52) if ku_bold else fb_en  # 52px - slightly bigger for clarity
+    fr_ku = load_ku(ku_reg, 32) if ku_reg else fs_en
 
     x, y = 45, 40
     draw.ellipse([x, y, x + 100, y + 100], fill=(255, 108, 20))
@@ -293,9 +300,12 @@ def card(title, summary, out="card.jpg"):
         try:
             import arabic_reshaper
             from bidi.algorithm import get_display
-            reshaped = arabic_reshaper.reshape(text)
+            # Use proper config for Kurdish - no tatweel, proper ligatures
+            reshaper = arabic_reshaper.ArabicReshaper(arabic_reshaper.config_for_true_type_font)
+            reshaped = reshaper.reshape(text)
             return get_display(reshaped)
-        except:
+        except Exception as e:
+            print(f"Reshape error: {e}")
             return text
 
     tl = title[:130].strip()
