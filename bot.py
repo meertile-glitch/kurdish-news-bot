@@ -2,7 +2,6 @@ import os
 import re
 import hashlib
 import requests
-import textwrap
 import asyncio
 import random
 import math
@@ -80,12 +79,36 @@ def is_ai(t):
     """لە کاتی تێستدا True ڕاگیراوە بۆ ئەوەی هەموو هەواڵێک تێپەڕێت"""
     return True
 
-def reshape_ku(text):
-    """بۆ بەستنەوەی پیتە کوردییەکان و ڕاستکردنەوەی چەپ/ڕاست (RTL)"""
+def render_kurdish_text(text, max_chars=28):
+    """دابەشکردنی دەق بەپێی وشەکان و دواتر بەستنەوەیان بە دروستی بۆ سۆرانی/عەرەبی"""
     if not text:
-        return ""
-    reshaped = arabic_reshaper.reshape(text)
-    return get_display(reshaped)
+        return []
+    
+    words = text.split()
+    lines = []
+    current_line = []
+    current_length = 0
+
+    for word in words:
+        if current_length + len(word) + 1 <= max_chars:
+            current_line.append(word)
+            current_length += len(word) + 1
+        else:
+            if current_line:
+                lines.append(" ".join(current_line))
+            current_line = [word]
+            current_length = len(word)
+
+    if current_line:
+        lines.append(" ".join(current_line))
+
+    processed_lines = []
+    for line in lines:
+        reshaped = arabic_reshaper.reshape(line)
+        bidi_text = get_display(reshaped)
+        processed_lines.append(bidi_text)
+
+    return processed_lines
 
 def create_beautiful_background(W, H):
     img = Image.new('RGB', (W, H), (4, 6, 22))
@@ -157,48 +180,35 @@ def card(title, summary, out="card.jpg"):
     img.paste(glass, (cx, cy), glass)
     draw = ImageDraw.Draw(img, 'RGBA')
 
-    # ١. دابەشکردنی دەقی ناونیشان (Title Wrap)
-    title_clean = title[:130].strip()
-    wr = textwrap.wrap(title_clean, width=28)[:4]
+    # ١. دابەشکردن و نەخشاندنی دەقی ناونیشان (Title)
+    title_lines = render_kurdish_text(title[:130].strip(), max_chars=28)[:4]
     
     sy = cy + 70
-    for i, line in enumerate(wr):
-        if not line.strip():
-            continue
-        
-        # ۲. بەستنەوە و ڕاستکردنەوەی پیتەکان بۆ ئەم دێڕە
-        shaped_line = reshape_ku(line)
-        
+    for i, line in enumerate(title_lines):
         try:
-            bbox = draw.textbbox((0, 0), shaped_line, font=fb_ku)
+            bbox = draw.textbbox((0, 0), line, font=fb_ku)
             tw = bbox[2] - bbox[0]
         except Exception:
-            tw = len(shaped_line) * 20
+            tw = len(line) * 20
             
         x_center = W // 2 - tw // 2
         y_pos = sy + i * 75
-        draw.text((x_center, y_pos), shaped_line, fill="white", font=fb_ku)
+        draw.text((x_center, y_pos), line, fill="white", font=fb_ku)
 
-    # ۳. دابەشکردنی پوختەی هەواڵ (Summary Wrap)
+    # ۲. دابەشکردن و نەخشاندنی پوختەی هەواڵەکە (Summary)
     if summary:
-        summary_clean = summary[:120].strip()
-        sw = textwrap.wrap(summary_clean, width=38)[:2]
-        sy2 = sy + len(wr) * 75 + 30
+        summary_lines = render_kurdish_text(summary[:120].strip(), max_chars=38)[:2]
+        sy2 = sy + len(title_lines) * 75 + 30
         
-        for j, line in enumerate(sw):
-            if not line.strip():
-                continue
-            
-            shaped_summary_line = reshape_ku(line)
-            
+        for j, line in enumerate(summary_lines):
             try:
-                bbox = draw.textbbox((0, 0), shaped_summary_line, font=fr_ku)
+                bbox = draw.textbbox((0, 0), line, font=fr_ku)
                 tw = bbox[2] - bbox[0]
             except Exception:
-                tw = len(shaped_summary_line) * 12
+                tw = len(line) * 12
                 
             x_center = W // 2 - tw // 2
-            draw.text((x_center, sy2 + j * 42), shaped_summary_line, fill=(220, 225, 255), font=fr_ku)
+            draw.text((x_center, sy2 + j * 42), line, fill=(220, 225, 255), font=fr_ku)
 
     # Footer
     ly = cy + ch - 100
