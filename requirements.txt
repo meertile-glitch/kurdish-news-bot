@@ -1,6 +1,7 @@
 python-telegram-bot==20.7
 feedparser
 requests
-Pillow
+Pillow>=10.0.0
 arabic-reshaper
 python-bidi
+deep-translator
