@@ -11,12 +11,12 @@ import hashlib
 import requests
 
 BOT_TOKEN = os.getenv("BOT_TOKEN") or "8921906381:AAEtOy3QDFFuwNMxHWeYSA9PsLvlqxQG24I"
-CHANNEL_ID = "@kurdish_short_news"
+CHANNEL_ID = os.getenv("CHANNEL_ID") or "@kurdish_short_news"
 SENT_FILE = "sent.txt"
 
-# Facebook - لە GitHub Secrets وەری دەگرێت
-FB_PAGE_ID = os.getenv("FB_PAGE_ID") or os.getenv("FB_ID")  # ID ی پەیجەکەت
-FB_PAGE_TOKEN = os.getenv("FB_PAGE_TOKEN") or os.getenv("FB_TOKEN")  # Page Access Token
+# Facebook - پشتگیری هەردوو ناو
+FB_PAGE_ID = os.getenv("FB_PAGE_ID") or os.getenv("FB_ID")
+FB_PAGE_TOKEN = os.getenv("FB_PAGE_TOKEN") or os.getenv("FB_TOKEN")
 
 REAL_AI_FEEDS = {
     "Google News AI (24h)": "https://news.google.com/rss/search?q=artificial+intelligence+when:1d&hl=en-US&gl=US&ceid=US:en",
@@ -76,38 +76,44 @@ def is_ai_news(text):
     return any(k in text.lower() for k in kws)
 
 def post_to_facebook(message, link=""):
-    """ناردن بۆ Facebook Page - AI News KRD"""
+    """ناردن بۆ Facebook Page - AI News"""
     if not FB_PAGE_ID or not FB_PAGE_TOKEN:
-        logging.info("Facebook credentials not set - skipping FB post")
+        logging.error(f"❌ Facebook credentials MISSING: ID={bool(FB_PAGE_ID)} TOKEN={bool(FB_PAGE_TOKEN)}")
         return False
     
+    logging.info(f"📘 Trying Facebook post: PageID={FB_PAGE_ID} Token_len={len(FB_PAGE_TOKEN)}")
+    
     try:
-        # بۆ Facebook، لینک لەگەڵ message
+        # Facebook - تەنها message، لینک لە ناو message
+        # چونکە link param پێویستی بە review هەیە
         fb_message = message
         if link:
             fb_message = f"{message}\n\n🔗 {link}"
         
-        # Facebook Graph API
+        # Graph API v18 - stable for Page posts
         url = f"https://graph.facebook.com/v18.0/{FB_PAGE_ID}/feed"
         data = {
             "message": fb_message,
             "access_token": FB_PAGE_TOKEN
         }
-        # ئەگەر لینک هەیە وەک attachment
-        if link:
-            data["link"] = link
         
-        resp = requests.post(url, data=data, timeout=15)
+        resp = requests.post(url, data=data, timeout=20)
         result = resp.json()
+        
+        logging.info(f"Facebook API response: {result}")
         
         if "id" in result:
             logging.info(f"✅ Posted to Facebook: {result['id']}")
             return True
         else:
-            logging.error(f"Facebook post failed: {result}")
+            logging.error(f"❌ Facebook post failed: {result}")
+            # بۆ debug زیاتر
+            if "error" in result:
+                err = result["error"]
+                logging.error(f"Error code={err.get('code')} message={err.get('message')}")
             return False
     except Exception as e:
-        logging.error(f"Facebook error: {e}")
+        logging.error(f"❌ Facebook exception: {e}")
         return False
 
 async def main():
@@ -127,6 +133,7 @@ async def main():
     cutoff = now_utc - timedelta(hours=24)
     
     logging.info(f"🔍 Scanning for AI news newer than {cutoff} - {len(REAL_AI_FEEDS)} sources")
+    logging.info(f"Facebook config: PageID={FB_PAGE_ID or 'NOT SET'} Token={'SET' if FB_PAGE_TOKEN else 'NOT SET'}")
     
     for name, url in REAL_AI_FEEDS.items():
         try:
@@ -174,10 +181,14 @@ async def main():
     logging.info(f"📊 Found {len(collected)} FRESH AI news (last 24h)")
     
     if not collected:
-        logging.info("No fresh news - will check next hour")
+        logging.info("No fresh news - will check next hour. This is why Facebook has no post!")
+        # Test post to Facebook even if no news to verify token works
+        test_ok = post_to_facebook("✅ Test from Kurdish AI Bot - Token works! AI News KRD 🤖", "https://ai.facebook.com")
+        if test_ok:
+            logging.info("✅ Facebook test post SUCCESS")
         return
     
-    selected = collected[:3]  # تەنها 3 بۆ ئەوەی Facebook spam نەبێت
+    selected = collected[:3]
     
     translated = []
     for item in selected:
@@ -200,7 +211,7 @@ async def main():
     new_hashes = []
     
     for item in translated:
-        # ===== 1. Telegram =====
+        # 1. Telegram
         try:
             flag = "🇹🇷" if item['lang'] == 'tr' else "🌍"
             time_str = f"⏰ {item['time']} UTC" if item['time'] else ""
@@ -222,7 +233,7 @@ async def main():
         except Exception as e:
             logging.error(f"Telegram send fail: {e}")
         
-        # ===== 2. Facebook =====
+        # 2. Facebook
         try:
             fb_text = f"🔥 {item['ku_title']}\n\n{item['ku_summary']}\n\n⏰ {item['time']} UTC | {item['source']} | لە 24 کاتژمێری ڕابردوو\n\n#ژیری_دەستکرد #AI #کوردی"
             fb_ok = post_to_facebook(fb_text, item['link'])
@@ -234,7 +245,6 @@ async def main():
         
         new_hashes.append(item['hash'])
     
-    # پاشەکەوت
     try:
         all_hashes = sent_hashes.union(set(new_hashes))
         with open(SENT_FILE, "w", encoding="utf-8") as f:
