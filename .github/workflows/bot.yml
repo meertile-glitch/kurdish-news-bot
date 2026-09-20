@@ -2,67 +2,42 @@ name: Kurdish AI News - Telegram + Facebook
 
 on:
   schedule:
-    - cron: '0 * * * *'  # هەر کاتژمێرێک - hourly
-  workflow_dispatch:  # دەستی
+    - cron: '0 * * * *'
+  workflow_dispatch:
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up Python 3.10
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      - name: Install Kurdish Fonts + RAQM + Beautiful Background Support
+      - name: Install Kurdish Fonts + RAQM
         run: |
-          echo "=== Installing system dependencies ==="
           sudo apt-get update -qq
-          sudo apt-get install -y libraqm0 libfribidi0 libharfbuzz0b 2>/dev/null || true
-          sudo apt-get install -y fonts-noto-core fonts-noto fonts-noto-naskh-arabic fonts-noto-kufi-arabic fonts-noto-cjk fonts-dejavu-core 2>/dev/null || true
-          
-          echo "=== Downloading Vazirmatn - most beautiful Kurdish font ==="
+          sudo apt-get install -y libraqm0 libfribidi0 libharfbuzz0b fonts-noto-core fonts-noto fonts-noto-naskh-arabic fonts-noto-kufi-arabic fonts-dejavu-core -qq 2>/dev/null || true
           mkdir -p /tmp/fonts
           cd /tmp/fonts
-          wget -q https://github.com/rastikerdar/vazirmatn/releases/download/v33.003/Vazirmatn-fonts.zip -O vazir.zip || echo "Vazir download failed, continuing"
-          unzip -o vazir.zip "*.ttf" -d . 2>/dev/null || unzip -o vazir.zip -d . 2>/dev/null || true
+          wget -q https://github.com/rastikerdar/vazirmatn/releases/download/v33.003/Vazirmatn-fonts.zip -O vazir.zip || true
+          unzip -o vazir.zip "*.ttf" -d . 2>/dev/null || true
           sudo mkdir -p /usr/share/fonts/truetype/noto/
           sudo cp /tmp/fonts/*.ttf /usr/share/fonts/truetype/noto/ 2>/dev/null || true
           sudo cp /tmp/fonts/Vazirmatn/*.ttf /usr/share/fonts/truetype/noto/ 2>/dev/null || true
-          sudo cp /tmp/fonts/*/*.ttf /usr/share/fonts/truetype/noto/ 2>/dev/null || true
           fc-cache -fv > /dev/null
-          
-          echo "=== Fonts check ==="
-          echo "RAQM and HarfBuzz will be checked after Pillow install"
-          echo "Kurdish fonts:"
-          fc-list | grep -i -E "kufi|naskh|vazir" | head -15
-          echo ""
-          echo "=== Template check ==="
-          if [ -f "template_base.jpg" ]; then
-            ls -lh template_base.jpg
-            echo "✅ Beautiful AI tech background found - will use it"
-          else
-            echo "⚠️ template_base.jpg NOT found - will generate beautiful CODE background"
-          fi
 
-      - name: Install Python dependencies
+      - name: Install deps
         run: |
-          pip install --upgrade pip -q
           pip install -r requirements.txt -q
           pip install --upgrade --force-reinstall Pillow -q
-          echo "=== Pillow features ==="
-          python -c "from PIL import features; print(f'RAQM: {features.check("raqm")}'); print(f'HarfBuzz: {features.check("harfbuzz")}'); print(f'FreeType: {features.check("freetype2")}')"
-          echo ""
-          echo "=== Kurdish font files ==="
-          ls -lh /usr/share/fonts/truetype/noto/ | grep -i -E "kufi|naskh|vazir" | head -10
+          python -c "from PIL import features; print('RAQM:', features.check('raqm')); print('HarfBuzz:', features.check('harfbuzz'))"
 
-      - name: Run AI News Bot
+      - name: Run Bot
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
@@ -70,17 +45,14 @@ jobs:
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           FB_ID: ${{ secrets.FB_ID }}
           FB_TOKEN: ${{ secrets.FB_TOKEN }}
-        run: |
-          echo "=== Starting bot ==="
-          python bot.py
+        run: python bot.py
 
-      - name: Save sent history
+      - name: Save history
         if: always()
         run: |
           git config --local user.email "bot@kurdish-ai.com"
           git config --local user.name "Kurdish AI Bot"
           git add sent.txt || true
-          git commit -m "Update sent history $(date -u)" || echo "No changes to commit"
+          git commit -m "Update sent $(date -u)" || true
           git pull --rebase origin main || true
-          git push origin main || true
-          echo "✅ Done"
+          git push || true
