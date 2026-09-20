@@ -25,7 +25,7 @@ jobs:
           mkdir -p /tmp/fonts
           cd /tmp/fonts
           wget -q https://github.com/rastikerdar/vazirmatn/releases/download/v33.003/Vazirmatn-fonts.zip -O vazir.zip || true
-          unzip -o vazir.zip "*.ttf" -d. 2>/dev/null || true
+          unzip -o vazir.zip "*.ttf" -d . 2>/dev/null || true
           sudo mkdir -p /usr/share/fonts/truetype/noto/
           sudo cp /tmp/fonts/*.ttf /usr/share/fonts/truetype/noto/ 2>/dev/null || true
           sudo cp /tmp/fonts/Vazirmatn/*.ttf /usr/share/fonts/truetype/noto/ 2>/dev/null || true
@@ -35,7 +35,7 @@ jobs:
         run: |
           pip install -r requirements.txt -q
           pip install --upgrade --force-reinstall Pillow -q
-          python -c "from PIL import features; print('RAQM:', features.check('raqm')); print('HarfBuzz:', features.check('harfbuzz'))"
+          python -c "from PIL import features; print('RAQM:', features.check('raqm'))"
 
       - name: Run Bot
         env:
@@ -43,8 +43,6 @@ jobs:
           CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
-          FB_ID: ${{ secrets.FB_ID }}
-          FB_TOKEN: ${{ secrets.FB_TOKEN }}
         run: python bot.py
 
       - name: Save history
