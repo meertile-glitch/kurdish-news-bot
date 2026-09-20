@@ -17,14 +17,80 @@ CH = os.getenv("CHANNEL_ID") or "@kurdish_short_news"
 FID = os.getenv("FB_PAGE_ID") or os.getenv("FB_ID")
 FTOK = os.getenv("FB_PAGE_TOKEN") or os.getenv("FB_TOKEN")
 
+# ONLY AI SOURCES + TWITTER/X - NO MIXED NEWS
 FEEDS = {
-    "G AI": "https://news.google.com/rss/search?q=artificial+intelligence+when:1d&hl=en-US&gl=US&ceid=US:en",
-    "G ChatGPT": "https://news.google.com/rss/search?q=ChatGPT+when:1d&hl=en-US&gl=US&ceid=US:en",
-    "G Gemini": "https://news.google.com/rss/search?q=Gemini+AI+when:1d&hl=en-US&gl=US&ceid=US:en",
-    "TechCrunch": "https://techcrunch.com/category/artificial-intelligence/feed/",
-    "TheVerge": "https://www.theverge.com/rss/ai/index.xml",
-    "Wired": "https://www.wired.com/feed/tag/ai/latest/rss"
+    "Google AI": "https://news.google.com/rss/search?q=artificial+intelligence+AI+when:1d&hl=en-US&gl=US&ceid=US:en",
+    "ChatGPT": "https://news.google.com/rss/search?q=ChatGPT+OpenAI+when:1d&hl=en-US&gl=US&ceid=US:en",
+    "Gemini": "https://news.google.com/rss/search?q=Google+Gemini+AI+when:1d&hl=en-US&gl=US&ceid=US:en",
+    "GPT-6 Astra": "https://news.google.com/rss/search?q=GPT-6+Astra+OpenAI+when:7d&hl=en-US&gl=US&ceid=US:en",
+    "TechCrunch AI": "https://techcrunch.com/category/artificial-intelligence/feed/",
+    "TheVerge AI": "https://www.theverge.com/rss/ai/index.xml",
+    "Wired AI": "https://www.wired.com/feed/tag/ai/latest/rss",
+    "ArsTechnica AI": "https://feeds.arstechnica.com/civis/68"
 }
+
+# TWITTER/X SOURCES - ALL AI ACCOUNTS USER REQUESTED - Nitter RSS
+TWITTER_FEEDS = {
+    # User requested accounts from screenshots
+    "ChatGPT": "https://nitter.poast.org/ChatGPT/rss",
+    "ChatGPT Alt": "https://nitter.privacydev.net/ChatGPT/rss",
+    "Claude AI": "https://nitter.poast.org/claudeai/rss",
+    "Claude AI Alt": "https://nitter.privacydev.net/claudeai/rss",
+    "Google AI Studio": "https://nitter.poast.org/GoogleAIStudio/rss",
+    "Google AI Studio Alt": "https://nitter.privacydev.net/GoogleAIStudio/rss",
+    # Previous accounts
+    "OpenAI": "https://nitter.poast.org/OpenAI/rss",
+    "OpenAI Alt": "https://nitter.privacydev.net/OpenAI/rss",
+    "Sam Altman": "https://nitter.poast.org/sama/rss",
+    "Google DeepMind": "https://nitter.poast.org/GoogleDeepMind/rss",
+    "Anthropic AI": "https://nitter.poast.org/AnthropicAI/rss",
+    # Google search fallbacks for reliability
+    "GPT-6 Astra Search": "https://news.google.com/rss/search?q=GPT-6+Astra+OpenAI+ChatGPT+when:2d&hl=en-US&gl=US&ceid=US:en",
+    "Gemini 3.8 Flash Search": "https://news.google.com/rss/search?q=Gemini+3.8+Flash+Google+AI+when:2d&hl=en-US&gl=US&ceid=US:en",
+    "Claude Opus 5 Search": "https://news.google.com/rss/search?q=Claude+Opus+5+Anthropic+when:2d&hl=en-US&gl=US&ceid=US:en",
+}
+
+def fetch_twitter_news():
+    """Fetch tweets from ALL AI accounts as news - ChatGPT, Claude, Gemini, OpenAI"""
+    tweets = []
+    for name, url in TWITTER_FEEDS.items():
+        try:
+            feed = feedparser.parse(url)
+            for e in feed.entries[:4]:
+                t = cl(getattr(e, 'title', ''))
+                lk = getattr(e, 'link', '')
+                # Convert Nitter link to X.com link
+                lk = lk.replace('nitter.poast.org', 'x.com').replace('nitter.privacydev.net', 'x.com')
+                if not t or not lk:
+                    continue
+                # Only AI tweets
+                if not is_ai_strict(t):
+                    continue
+                # Skip pure retweets
+                if t.startswith('RT @') and len(t) < 100:
+                    continue
+                # Important keywords - GPT-6 Astra, Gemini 3.8, Claude Opus 5
+                is_important = any(x in t.lower() for x in ['gpt-6', 'astra', 'gemini 3.8', 'claude opus 5', 'opus 5', 'new star', 'meets gpt'])
+                h = hashlib.md5(lk.encode()).hexdigest()[:10]
+                tweets.append({
+                    "title": t,
+                    "summary": t[:200],
+                    "link": lk,
+                    "source": name,
+                    "lang": "en",
+                    "hash": h,
+                    "time": datetime.now(timezone.utc).strftime("%H:%M"),
+                    "is_tweet": True,
+                    "is_important": is_important
+                })
+                print(f"Tweet found: {name} - {t[:80]}")
+        except Exception as e:
+            print(f"Twitter fetch error {name}: {e}")
+            continue
+    # Sort important first - GPT-6 Astra, Gemini 3.8 Flash, Claude Opus 5 on top
+    tweets.sort(key=lambda x: x.get('is_important', False), reverse=True)
+    return tweets[:8]
+
 
 def cl(t):
     if not t:
@@ -38,7 +104,7 @@ def tr_mem(txt, src='en', tgt='ckb'):
         d = r.json()
         if d.get('responseStatus') == 200:
             t = d['responseData']['translatedText']
-            if t and len(t) > 8 and '[MYMEMORY' not in t and t.lower()!= txt.lower()[:20]:
+            if t and len(t) > 8 and '[MYMEMORY' not in t and t.lower() != txt.lower()[:20]:
                 return t
     except:
         pass
@@ -70,12 +136,27 @@ def fresh(e, h=24):
     except:
         return True
 
-def is_ai(t):
-    k = ["ai", "artificial intelligence", "chatgpt", "openai", "gemini", "gpt", "llm", "machine learning", "anthropic", "nvidia", "neural"]
-    return any(x in t.lower() for x in k)
+def is_ai_strict(t):
+    """STRICT AI filter - ONLY AI news, includes GPT-6 Astra, excludes mixed"""
+    if not t:
+        return False
+    text = t.lower()
+    # Must contain AI keywords - now includes GPT-6 Astra, Gemini 3.8, Claude Opus 5
+    must_have = ["ai", "artificial intelligence", "chatgpt", "openai", "gemini", "gemini 3.8", "flash", "gpt-4", "gpt-5", "gpt-6", "astra", "sora", "dall-e", "llm", "machine learning", "deep learning", "neural network", "anthropic", "claude", "claude opus", "opus 5", "nvidia ai", "generative ai", "stable diffusion", "midjourney", "grok", "deepmind", "new star enters the chat"]
+    # Exclude non-AI topics that cause mixed news
+    exclude = ["weapon", "gun license", "وەزارەتی ناوخۆ", "چەک", "مۆڵەتی چەک", "وەرگرتنەوەی مۆڵەت", "turkey general", "politics", "football", "earthquake", "بوومەلەرزە"]
+    # Check exclude first
+    for ex in exclude:
+        if ex in text:
+            print(f"EXCLUDED (non-AI): {t[:80]} - contains {ex}")
+            return False
+    # Must have at least one AI keyword
+    for kw in must_have:
+        if kw in text:
+            return True
+    return False
 
 def create_beautiful_background(W, H):
-    """Ultra beautiful AI tech background - no upload needed"""
     img = Image.new('RGB', (W, H), (4, 6, 22))
     draw = ImageDraw.Draw(img, 'RGBA')
     for y in range(H):
@@ -146,7 +227,7 @@ def card(title, summary, out="card.jpg"):
     W, H = 1080, 1080
     print(f"RAQM={features.check('raqm')} HarfBuzz={features.check('harfbuzz')}")
     base = create_beautiful_background(W, H)
-    print(f"Using CODE beautiful AI tech background - no template needed!")
+    print(f"Using CODE beautiful AI tech background")
     img = base.copy()
     draw = ImageDraw.Draw(img, 'RGBA')
     try:
@@ -168,28 +249,27 @@ def card(title, summary, out="card.jpg"):
                 return ImageFont.truetype(p, size, layout_engine=LAYOUT)
             else:
                 return ImageFont.truetype(p, size)
-        except Exception as e:
-            print(f"Font load fail {p}: {e}")
+        except:
             return ImageFont.load_default()
 
     en_bold = find_font(["DejaVuSans-Bold.ttf", "DejaVuSans.ttf"]) or "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
     en_reg = find_font(["DejaVuSans.ttf"]) or "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-    ku_bold_candidates = ["NotoKufiArabic-Bold.ttf", "NotoNaskhArabic-Bold.ttf", "Vazirmatn-Bold.ttf", "DejaVuSans-Bold.ttf", "DroidKufi-Bold.ttf"]
-    ku_reg_candidates = ["NotoKufiArabic-Regular.ttf", "NotoNaskhArabic-Regular.ttf", "Vazirmatn-Regular.ttf", "DejaVuSans.ttf", "DroidKufi-Regular.ttf"]
+    ku_bold_candidates = ["Vazirmatn-Bold.ttf", "Vazirmatn-Medium.ttf", "NotoNaskhArabic-Bold.ttf", "NotoKufiArabic-Bold.ttf"]
+    ku_reg_candidates = ["Vazirmatn-Regular.ttf", "NotoNaskhArabic-Regular.ttf", "NotoKufiArabic-Regular.ttf"]
     ku_bold = find_font(ku_bold_candidates)
     ku_reg = find_font(ku_reg_candidates)
-    print(f"Using beautiful Kurdish fonts: Bold={ku_bold} Regular={ku_reg}")
+    print(f"Kurdish font: {ku_bold}")
 
-    fb_en = load(en_bold, 46)
+    fb_en = load(en_bold, 48)
     fs_en = load(en_reg, 22)
-    fb_ku = load(ku_bold, 58) if ku_bold else fb_en
-    fr_ku = load(ku_reg, 34) if ku_reg else fs_en
+    fb_ku = load(ku_bold, 50) if ku_bold else fb_en
+    fr_ku = load(ku_reg, 30) if ku_reg else fs_en
 
     x, y = 45, 40
     draw.ellipse([x, y, x + 100, y + 100], fill=(255, 108, 20))
-    draw.text((x + 28, y + 22), "AI", fill="white", font=fb_en)
-    draw.text((x + 130, y + 18), "AI NEWS", fill="white", font=fs_en)
-    draw.text((x + 130, y + 44), "KURDISH", fill="white", font=fs_en)
+    draw.text((x+28, y+22), "AI", fill="white", font=fb_en)
+    draw.text((x+130, y+18), "AI NEWS", fill="white", font=fs_en)
+    draw.text((x+130, y+44), "KURDISH", fill="white", font=fs_en)
 
     cw, ch = 880, 680
     cx, cy = (W - cw) // 2, (H - ch) // 2 + 40
@@ -208,42 +288,77 @@ def card(title, summary, out="card.jpg"):
     for i in range(3):
         alpha = 220 - i * 50
         draw.rounded_rectangle([cx - i, cy - i, cx + cw + i, cy + ch + i], radius=32 + i, outline=(140 + i * 10, 95, 255, alpha), width=1)
-    draw.rounded_rectangle([cx + 8, cy + 8, cx + cw - 8, cy + ch - 8], radius=26, outline=(180, 180, 255, 60), width=1)
+
+    def reshape_kurdish(text):
+        try:
+            import arabic_reshaper
+            from bidi.algorithm import get_display
+            reshaped = arabic_reshaper.reshape(text)
+            return get_display(reshaped)
+        except:
+            return text
 
     tl = title[:130].strip()
-    wr = textwrap.wrap(tl, width=22)[:4]
-    sy = cy + 70
+    words = tl.split()
+    lines = []
+    cur = ""
+    for w in words:
+        test = cur + " " + w if cur else w
+        if len(test) > 20:
+            if cur:
+                lines.append(cur)
+            cur = w
+        else:
+            cur = test
+    if cur:
+        lines.append(cur)
+    wr = lines[:4]
+
+    sy = cy + 60
     for i, l in enumerate(wr):
         if not l.strip():
             continue
+        l_disp = reshape_kurdish(l)
         try:
-            bbox = draw.textbbox((0, 0), l, font=fb_ku)
+            bbox = draw.textbbox((0, 0), l_disp, font=fb_ku)
             tw = bbox[2] - bbox[0]
         except:
-            tw = len(l) * 22
+            tw = len(l) * 18
         x_center = W // 2 - tw // 2
-        y_pos = sy + i * 82
-        draw.text((x_center + 5, y_pos + 5), l, fill=(0, 0, 0, 230), font=fb_ku)
-        for dx, dy in [(-2, -2), (-2, 2), (2, -2), (2, 2), (-2, 0), (2, 0), (0, -2), (0, 2)]:
-            draw.text((x_center + dx, y_pos + dy), l, fill=(140, 100, 255, 140), font=fb_ku)
-        for dx, dy in [(-3, 0), (3, 0), (0, -3), (0, 3)]:
-            draw.text((x_center + dx, y_pos + dy), l, fill=(120, 80, 220, 80), font=fb_ku)
-        draw.text((x_center, y_pos), l, fill="white", font=fb_ku)
+        y_pos = sy + i * 78
+        draw.text((x_center + 3, y_pos + 3), l_disp, fill=(0, 0, 0, 200), font=fb_ku)
+        for dx, dy in [(-1, -1), (-1, 1), (1, -1), (1, 1), (-1, 0), (1, 0), (0, -1), (0, 1)]:
+            draw.text((x_center + dx, y_pos + dy), l_disp, fill=(100, 70, 200, 180), font=fb_ku)
+        draw.text((x_center, y_pos), l_disp, fill="white", font=fb_ku)
 
     if summary:
         sm = summary[:120].strip()
-        sw = textwrap.wrap(sm, width=32)[:2]
-        sy2 = sy + len(wr) * 82 + 40
+        words_s = sm.split()
+        sw = []
+        cur_s = ""
+        for w in words_s:
+            test = cur_s + " " + w if cur_s else w
+            if len(test) > 30:
+                if cur_s:
+                    sw.append(cur_s)
+                cur_s = w
+            else:
+                cur_s = test
+        if cur_s:
+            sw.append(cur_s)
+        sw = sw[:2]
+        sy2 = sy + len(wr) * 78 + 30
         for j, l in enumerate(sw):
             if not l.strip():
                 continue
+            l_disp = reshape_kurdish(l)
             try:
-                bbox = draw.textbbox((0, 0), l, font=fr_ku)
+                bbox = draw.textbbox((0, 0), l_disp, font=fr_ku)
                 tw = bbox[2] - bbox[0]
             except:
-                tw = len(l) * 14
-            draw.text((W // 2 - tw // 2 + 1, sy2 + j * 46 + 1), l, fill=(0, 0, 0, 150), font=fr_ku)
-            draw.text((W // 2 - tw // 2, sy2 + j * 46), l, fill=(220, 225, 255), font=fr_ku)
+                tw = len(l) * 12
+            draw.text((W // 2 - tw // 2 + 1, sy2 + j * 44 + 1), l_disp, fill=(0, 0, 0, 150), font=fr_ku)
+            draw.text((W // 2 - tw // 2, sy2 + j * 44), l_disp, fill=(220, 225, 255), font=fr_ku)
 
     ly = cy + ch - 130
     draw.line([cx + 60, ly, cx + cw - 60, ly], fill=(100, 180, 255, 120), width=1)
@@ -255,7 +370,6 @@ def card(title, summary, out="card.jpg"):
     draw.text((W // 2 - tw // 2, ly + 35), b, fill=(130, 190, 255), font=fs_en)
     draw.text((35, H - 45), "ai.news.krd", fill=(100, 180, 255), font=fs_en)
     img.save(out, quality=95)
-    print(f"Card saved: {out} with beautiful CODE background")
     return out
 
 def fb_post(msg, link="", img_path=None):
@@ -285,6 +399,17 @@ async def main():
         pass
     coll = []
     seen = set()
+    # 1. Fetch Twitter/X first - GPT-6 Astra is priority
+    try:
+        twitter_news = fetch_twitter_news()
+        for tw in twitter_news:
+            if tw['link'] not in seen and tw['hash'] not in sent:
+                coll.append(tw)
+                seen.add(tw['link'])
+                print(f"Added tweet: {tw['title'][:60]}")
+    except Exception as e:
+        print(f"Twitter fetch failed: {e}")
+    # 2. Fetch RSS feeds
     for name, url in FEEDS.items():
         try:
             feed = feedparser.parse(url)
@@ -297,7 +422,7 @@ async def main():
                 seen.add(lk)
                 if not fresh(e, 24):
                     continue
-                if not is_ai(f"{t} {s}"):
+                if not is_ai_strict(f"{t} {s}"):
                     continue
                 h = hashlib.md5(lk.encode()).hexdigest()[:10]
                 if h in sent:
@@ -306,9 +431,12 @@ async def main():
                 if hasattr(e, 'published_parsed') and e.published_parsed:
                     pt = datetime(*e.published_parsed[:6], tzinfo=timezone.utc).strftime("%H:%M")
                 coll.append({"title": t, "summary": s, "link": lk, "source": name, "lang": 'tr' if 'tr' in url.lower() else 'en', "hash": h, "time": pt})
-        except:
+        except Exception as e:
+            print(f"Feed error {name}: {e}")
             continue
+    print(f"Found {len(coll)} AI-only news items")
     if not coll:
+        print("No AI news found - all filtered as non-AI")
         return
     sel = coll[:3]
     trans = []
@@ -316,7 +444,7 @@ async def main():
         try:
             kt = to_ku(it['title'], it['lang'])
             sum_raw = it['summary'][:160] if it['summary'] else ""
-            if sum_raw and sum_raw[:35].lower()!= it['title'][:35].lower():
+            if sum_raw and sum_raw[:35].lower() != it['title'][:35].lower():
                 ks = to_ku(sum_raw, it['lang'])
             else:
                 ks = ""
