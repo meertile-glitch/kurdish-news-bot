@@ -29,6 +29,26 @@ FEEDS = {
     "Wired": "https://www.wired.com/feed/tag/ai/latest/rss"
 }
 
+FONT_PATH_BOLD = "Vazirmatn-Bold.ttf"
+FONT_PATH_REG = "Vazirmatn-Regular.ttf"
+
+def download_kurdish_font():
+    """داگرتنی ئۆتۆماتیکی فۆنتی پشتیوانیکەری زمانی کوردی/سۆرانی"""
+    urls = {
+        FONT_PATH_BOLD: "https://github.com/rastikerdar/vazirmatn/raw/master/fonts/ttf/Vazirmatn-Bold.ttf",
+        FONT_PATH_REG: "https://github.com/rastikerdar/vazirmatn/raw/master/fonts/ttf/Vazirmatn-Regular.ttf"
+    }
+    for font_file, url in urls.items():
+        if not os.path.exists(font_file):
+            try:
+                print(f"📥 داگرتنی فۆنتی: {font_file} ...")
+                r = requests.get(url, timeout=15)
+                with open(font_file, "wb") as f:
+                    f.write(r.content)
+                print(f"✅ فۆنتی {font_file} داگیرا.")
+            except Exception as e:
+                print(f"❌ کێشە لە داگرتنی فۆنت: {e}")
+
 def cl(t):
     if not t:
         return ""
@@ -75,12 +95,8 @@ def fresh(e, h=24):
     except Exception:
         return True
 
-def is_ai(t):
-    """لە کاتی تێستدا True ڕاگیراوە بۆ ئەوەی هەموو هەواڵێک تێپەڕێت"""
-    return True
-
 def render_kurdish_text(text, max_chars=28):
-    """دابەشکردنی دەق بەپێی وشەکان و دواتر بەستنەوەیان بە دروستی بۆ سۆرانی/عەرەبی"""
+    """دابەشکردنی دەق بەپێی وشەکان و دواتر ڕاستکردنەوەی BiDi و Reshaper"""
     if not text:
         return []
     
@@ -128,40 +144,21 @@ def create_beautiful_background(W, H):
     return img
 
 def card(title, summary, out="card.jpg"):
+    download_kurdish_font()
+    
     W, H = 1080, 1080
     base = create_beautiful_background(W, H)
     img = base.copy()
     draw = ImageDraw.Draw(img, 'RGBA')
 
     try:
-        LAYOUT = ImageFont.Layout.RAQM
-    except Exception:
-        LAYOUT = None
-
-    def find_font(names):
-        dirs = ["/usr/share/fonts/truetype/noto", "/usr/share/fonts/opentype/noto", "/usr/share/fonts/truetype/dejavu", "./", "./fonts"]
-        for d in dirs:
-            for n in names:
-                p = os.path.join(d, n)
-                if os.path.exists(p):
-                    return p
-        return None
-
-    def load(p, size):
-        try:
-            return ImageFont.truetype(p, size, layout_engine=LAYOUT) if LAYOUT else ImageFont.truetype(p, size)
-        except Exception:
-            return ImageFont.load_default()
-
-    en_bold = find_font(["DejaVuSans-Bold.ttf"]) or "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-    en_reg = find_font(["DejaVuSans.ttf"]) or "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-    ku_bold = find_font(["NotoKufiArabic-Bold.ttf", "NotoNaskhArabic-Bold.ttf", "Vazirmatn-Bold.ttf"]) or en_bold
-    ku_reg = find_font(["NotoKufiArabic-Regular.ttf", "NotoNaskhArabic-Regular.ttf", "Vazirmatn-Regular.ttf"]) or en_reg
-
-    fb_en = load(en_bold, 46)
-    fs_en = load(en_reg, 22)
-    fb_ku = load(ku_bold, 52)
-    fr_ku = load(ku_reg, 32)
+        fb_ku = ImageFont.truetype(FONT_PATH_BOLD, 48)
+        fr_ku = ImageFont.truetype(FONT_PATH_REG, 30)
+        fb_en = ImageFont.truetype(FONT_PATH_BOLD, 42)
+        fs_en = ImageFont.truetype(FONT_PATH_REG, 20)
+    except Exception as e:
+        print(f"⚠️ کێشە لە بارکردنی فۆنت: {e}")
+        fb_ku = fr_ku = fb_en = fs_en = ImageFont.load_default()
 
     # دیزاینی لۆگۆ
     x, y = 45, 40
@@ -170,7 +167,7 @@ def card(title, summary, out="card.jpg"):
     draw.text((x + 130, y + 18), "AI NEWS", fill="white", font=fs_en)
     draw.text((x + 130, y + 44), "KURDISH", fill="white", font=fs_en)
 
-    # دیزاینی کارت (Glass effect)
+    # دیزاینی کارت
     cw, ch = 880, 680
     cx, cy = (W - cw) // 2, (H - ch) // 2 + 40
     glass = Image.new('RGBA', (cw, ch), (18, 22, 48, 210))
@@ -180,10 +177,10 @@ def card(title, summary, out="card.jpg"):
     img.paste(glass, (cx, cy), glass)
     draw = ImageDraw.Draw(img, 'RGBA')
 
-    # ١. دابەشکردن و نەخشاندنی دەقی ناونیشان (Title)
-    title_lines = render_kurdish_text(title[:130].strip(), max_chars=28)[:4]
+    # ١. نەخشاندنی ناونیشان
+    title_lines = render_kurdish_text(title[:130].strip(), max_chars=26)[:4]
     
-    sy = cy + 70
+    sy = cy + 80
     for i, line in enumerate(title_lines):
         try:
             bbox = draw.textbbox((0, 0), line, font=fb_ku)
@@ -192,13 +189,13 @@ def card(title, summary, out="card.jpg"):
             tw = len(line) * 20
             
         x_center = W // 2 - tw // 2
-        y_pos = sy + i * 75
+        y_pos = sy + i * 70
         draw.text((x_center, y_pos), line, fill="white", font=fb_ku)
 
-    # ۲. دابەشکردن و نەخشاندنی پوختەی هەواڵەکە (Summary)
+    # ۲. نەخشاندنی پوختە
     if summary:
-        summary_lines = render_kurdish_text(summary[:120].strip(), max_chars=38)[:2]
-        sy2 = sy + len(title_lines) * 75 + 30
+        summary_lines = render_kurdish_text(summary[:120].strip(), max_chars=36)[:2]
+        sy2 = sy + len(title_lines) * 70 + 25
         
         for j, line in enumerate(summary_lines):
             try:
@@ -208,12 +205,12 @@ def card(title, summary, out="card.jpg"):
                 tw = len(line) * 12
                 
             x_center = W // 2 - tw // 2
-            draw.text((x_center, sy2 + j * 42), line, fill=(220, 225, 255), font=fr_ku)
+            draw.text((x_center, sy2 + j * 40), line, fill=(220, 225, 255), font=fr_ku)
 
     # Footer
-    ly = cy + ch - 100
+    ly = cy + ch - 90
     draw.line([cx + 60, ly, cx + cw - 60, ly], fill=(100, 180, 255, 120), width=1)
-    draw.text((W // 2 - 80, ly + 20), "AI News Kurdish", fill=(130, 190, 255), font=fs_en)
+    draw.text((W // 2 - 75, ly + 20), "AI News Kurdish", fill=(130, 190, 255), font=fs_en)
     
     img.save(out, quality=95)
     return out
@@ -259,26 +256,21 @@ async def main():
         try:
             print(f"🔍 پشکنین بۆ feedی: {name} ...")
             feed = feedparser.parse(url)
-            print(f"📊 ژمارەی بابەتە دۆزراوەکان لە {name}: {len(feed.entries)}")
             
             for e in feed.entries[:8]:
                 t = cl(getattr(e, 'title', ''))
                 s = cl(getattr(e, 'summary', '') or getattr(e, 'description', ''))
                 lk = getattr(e, 'link', '')
                 
-                if not t or not lk:
-                    continue
-                if lk in seen:
+                if not t or not lk or lk in seen:
                     continue
                 seen.add(lk)
                 
                 if not fresh(e, 24):
-                    print(f"  - ڕەتکرایەوە (کۆنە): {t[:30]}...")
                     continue
                 
                 h = hashlib.md5(lk.encode()).hexdigest()[:10]
                 if h in sent:
-                    print(f"  - ڕەتکرایەوە (پێشتر نێردراوە): {t[:30]}...")
                     continue
                 
                 pt = ""
@@ -304,7 +296,7 @@ async def main():
         cp = f"c_{it['hash']}.jpg"
         try:
             card(kt, ks, cp)
-            print("🎨 وێنەی کارتەکە بە تەواوی دروستکرا.")
+            print("🎨 وێنەی کارتەکە دروستکرا.")
         except Exception as e:
             print(f"❌ کێشە لە دروستکردنی وێنە: {e}")
             cp = None
