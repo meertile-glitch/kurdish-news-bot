@@ -9,7 +9,7 @@ BOT=os.getenv("BOT_TOKEN") or "8921906381:AAEtOy3QDFFuwNMxHWeYSA9PsLvlqxQG24I"
 CH=os.getenv("CHANNEL_ID") or "@kurdish_short_news"
 FID=os.getenv("FB_PAGE_ID") or os.getenv("FB_ID")
 FTOK=os.getenv("FB_PAGE_TOKEN") or os.getenv("FB_TOKEN")
-TPL="template_base.jpg"
+# TPL removed - using CODE beautiful background only, no upload needed
 
 FEEDS={
 "G AI":"https://news.google.com/rss/search?q=artificial+intelligence+when:1d&hl=en-US&gl=US&ceid=US:en",
@@ -215,7 +215,7 @@ def card(title,summary,out="card.jpg"):
  cw,ch=880,680
  cx,cy=(W-cw)//2,(H-ch)//2+40
  # Glass effect
- glass = Image.new('RGBA',(cw,ch),(28,32,68,75))
+ glass = Image.new('RGBA',(cw,ch),(18,22,48,210))
  mask = Image.new('L',(cw,ch),0)
  ImageDraw.Draw(mask).rounded_rectangle([0,0,cw,ch],radius=32,fill=255)
  glass.putalpha(mask)
