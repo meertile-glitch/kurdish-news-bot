@@ -1,8 +1,10 @@
-name: Kurdish AI News Bot
+name: Kurdish AI News - Telegram + Facebook Page
+
 on:
   schedule:
-    - cron: '0 6 * * *'
+    - cron: '0 * * * *'  # هەر کاتژمێرێک
   workflow_dispatch:
+
 jobs:
   run-bot:
     runs-on: ubuntu-latest
@@ -13,17 +15,19 @@ jobs:
           python-version: '3.10'
       - name: Install deps
         run: pip install -r requirements.txt
-      - name: Run AI News Bot
+      - name: Run Bot - Telegram + Facebook Page
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
-          FB_TOKEN: ${{ secrets.FB_TOKEN }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           FB_ID: ${{ secrets.FB_ID }}
+          FB_TOKEN: ${{ secrets.FB_TOKEN }}
+          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
         run: python bot.py
-      - name: Save history
+      - name: Save sent history
         run: |
-          git config --local user.email "bot@ai.com"
-          git config --local user.name "AI Bot"
-          git add -A || true
-          git commit -m "update history" || true
+          git config --local user.email "bot@kurdish-ai.com"
+          git config --local user.name "Kurdish AI Bot"
+          git add sent.txt || true
+          git commit -m "Update sent $(date -u)" || true
           git push || true
