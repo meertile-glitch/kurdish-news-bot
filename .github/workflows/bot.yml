@@ -25,7 +25,7 @@ jobs:
           mkdir -p /tmp/fonts
           cd /tmp/fonts
           wget -q https://github.com/rastikerdar/vazirmatn/releases/download/v33.003/Vazirmatn-fonts.zip -O vazir.zip || true
-          unzip -o vazir.zip "*.ttf" -d . 2>/dev/null || true
+          unzip -o vazir.zip "*.ttf" -d. 2>/dev/null || true
           sudo mkdir -p /usr/share/fonts/truetype/noto/
           sudo cp /tmp/fonts/*.ttf /usr/share/fonts/truetype/noto/ 2>/dev/null || true
           sudo cp /tmp/fonts/Vazirmatn/*.ttf /usr/share/fonts/truetype/noto/ 2>/dev/null || true
