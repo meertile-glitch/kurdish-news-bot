@@ -17,20 +17,23 @@ try:
 except ImportError:
     HAS_LINK_PREVIEW = False
 
-# GitHub Secrets
+# GitHub Secrets / Environment Variables
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "@kurdish_short_news")
 FB_PAGE_ID = os.getenv("FB_PAGE_ID")
 FB_PAGE_TOKEN = os.getenv("FB_PAGE_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
+# ڕێکخستنی Gemini API
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
+# سەرچاوەی هەواڵەکە (TechCrunch AI)
 TECHCRUNCH_AI_FEED = "https://techcrunch.com/category/artificial-intelligence/feed/"
 
 
 def clean_text(t):
+    """پاککردنەوەی دەق لە تەگی ناپێویست."""
     if not t:
         return ""
     t = re.sub(r'<[^<]+?>', '', t)
@@ -41,13 +44,14 @@ def clean_text(t):
 
 def news_editor_agent(title, summary, link):
     """
-    ئەمە ئاجێنتەکەیە: هەڵسەنگاندن بۆ هەواڵەکە دەکات و بڕیار دەدات بڵاوی بکاتەوە یان نا.
+    ئەمە ئاجێنتەکەیە: هەڵسەنگاندن بۆ هەواڵەکە دەکات، بڕیار دەدات بڵاوی بکاتەوە یان نا،
+    وە دەقە ئینگلیزییەکە وەردەگێڕێتە سەر زمانی کوردیی سۆرانیی زۆر پاراو و ڕۆژنامەوانی.
     """
     if not GEMINI_API_KEY:
-        # ئەگەر کلیل نەبوو، وەک پشتیوان (Fallback) بڕیاری بڵاوکردنەوە دەدات
+        print("⚠️ GEMINI_API_KEY missing, bypassing AI agent processing.")
         return {
             "should_publish": True,
-            "reason": "No API key, bypassing agent decision.",
+            "reason": "No API key provided, default publish.",
             "telegram_caption": f"⚡️ <b>{title}</b>\n\n{summary}",
             "facebook_caption": f"⚡️ {title}\n\n{summary}"
         }
@@ -56,24 +60,25 @@ def news_editor_agent(title, summary, link):
         model = genai.GenerativeModel('gemini-2.5-flash')
         
         prompt = f"""
-تو ئاجێنتێکی سەرنووسەری ژیر و شارەزای بەشی تەکنەلۆجیای.
-ئەرکت هەڵسەنگاندن و ئامادەکردنی ئەم هەواڵەی خوارەوەیە:
+تو ئاجێنتێکی سەرنووسەری ژیر و شارەزای بەشی تەکنەلۆجیای. 
+ئەرکت هەڵسەنگاندن و وەرگێڕانی ئەم هەواڵەی خوارەوەیە بۆ زمانی کوردیی سۆرانیی زۆر پاراو، ڕوان، و ڕۆژنامەوانی:
 
-سەردێڕ: {title}
-کورتە: {summary}
+سەردێڕی ئینگلیزی: {title}
+کورتەی ئینگلیزی: {summary}
 لینک: {link}
 
-یاساکان بۆ ئاجێنت:
-1. پێویستە هەڵسەنگاندن بکەیت؛ ئەگەر هەواڵەکە زۆر کەمباپێز بێت یان گرنگییەکی ئەوتۆی نەبێت، should_publish بکە بە false.
-2. ئەگەر هەواڵەکە شایەن بوو، بڵاوی بکەرەوە و دەقە ئینگلیزییەکە وەربگێڕە سەر زمانی کوردیی سۆرانیی زۆر پاراو و ڕۆژنامەوانی.
-3. بۆ تێلیگرام دەقێکی کورت و ڕوان ئامادە بگە، بۆ فەیسبووک ڕوونکرنەوەیەکی زانیاریدەر دروست بکە.
+مەرج و یاسا تووندەکان:
+1. بە هیچ شێوەیەک زمانی ئینگلیزی بەکارنەهێنیت لە بەشی telegram_caption و facebook_caption، هەموو دەقەکان پێویستە بە زمانی کوردیی سۆرانیی پاراو بن.
+2. وەرگێڕانی وشەبەوشە مەکە؛ لە مانای دەقە ئینگلیزییەکە تێبگە و بە داڕشتنی ڕۆژنامەوانیی کوردی سەرتاپای بنووسەرەوە.
+3. زاراوە تەکنەلۆجییە ناسراوەکان (وەک AI, LLM, OpenAI, Cloud) وەکو خۆیان بە پیت یان بە کوردی بنووسە.
+4. ئەگەر هەواڵەکە گرنگییەکی ئەوتۆی نەبوو یان بابەتێکی زۆر لاوەکی بوو، should_publish بکە بە false.
 
-تکایە بە شێوازی JSON وەڵام بدەرەوە بەم پەیکەرەی خوارەوە:
+تکایە تەنها بە شێوازی JSON بەم شێوازە وەڵام بدەرەوە:
 {{
-  "should_publish": true/false,
+  "should_publish": true,
   "reason": "هۆکاری بڕیارەکەت بە کوردی لە یەک ڕستەدا",
-  "telegram_caption": "سەردێڕ و کورتەی کوردیی پاراو بۆ تێلیگرام",
-  "facebook_caption": "دەقی کوردی بەپێز بۆ فەیسبووک"
+  "telegram_caption": "⚡️ <b>[سەردێڕی هەواڵ بە کوردیی پاراو]</b>\\n\\n[کورتەی هەواڵ لە ۱ یان ۲ ڕستەدا بە کوردیی سۆرانیی زۆر ڕوان]",
+  "facebook_caption": "⚡️ [سەردێڕی هەواڵ بە کوردی]\\n\\n[ڕوونکرنەوەی تێروتەسەلی هەواڵەکە بە زمانی کوردیی سۆرانیی زۆر پاراو]"
 }}
 """
 
@@ -86,7 +91,7 @@ def news_editor_agent(title, summary, link):
         return decision
 
     except Exception as e:
-        print(f"Agent Evaluation Error: {e}")
+        print(f"❌ Agent Evaluation Error: {e}")
         return {
             "should_publish": True,
             "reason": "Error during AI response, defaulting to publish.",
@@ -96,7 +101,9 @@ def news_editor_agent(title, summary, link):
 
 
 def post_to_facebook(caption, link):
+    """بڵاوکردنەوە لەسەر پەڕەی فەیسبووک بە لەگەڵ بەستەر بۆ پێشاندانی وێنە."""
     if not FB_PAGE_TOKEN or not FB_PAGE_ID:
+        print("⚠️ Facebook credentials missing, skipping Facebook post.")
         return False
     try:
         full_message = f"{caption}\n\n🔗 خوێندنەوەی تەواوی بابەتەکە:\n{link}"
@@ -110,13 +117,19 @@ def post_to_facebook(caption, link):
             timeout=20
         )
         res = r.json()
-        return "id" in res
+        if "id" in res:
+            print(f"✅ Published on Facebook ID: {res['id']}")
+            return True
+        else:
+            print(f"❌ Facebook API Error: {res}")
+            return False
     except Exception as e:
-        print(f"Facebook Exception: {e}")
+        print(f"❌ Facebook Exception: {e}")
         return False
 
 
 def get_sent_hashes():
+    """خوێندنەوەی لیستی ئەو هەواڵانەی پێشتر نێردراون."""
     if not os.path.exists("sent.txt"):
         return set()
     with open("sent.txt", "r", encoding="utf-8") as f:
@@ -124,6 +137,7 @@ def get_sent_hashes():
 
 
 def save_sent_hash(news_hash):
+    """تۆمارکردنی ئایدی هەواڵە نێردراوەکان."""
     hashes = get_sent_hashes()
     hashes.add(news_hash)
     with open("sent.txt", "w", encoding="utf-8") as f:
@@ -148,20 +162,20 @@ async def check_and_publish_news(bot):
             if news_hash in sent_hashes:
                 continue
 
-            print(f"\nEvaluating news item: {title}")
+            print(f"\n🧠 Agent is evaluating news item: {title}")
 
-            # 1. ڕادەستکردنی هەواڵەکە بە ئاجێنتەکە بۆ بڕیاردان
+            # 1. بڕیاردانی ئاجێنت لەسەر شیاوی و وەرگێڕانی هەواڵەکە
             decision = news_editor_agent(title, summary, link)
 
-            # 2. گوێڕایەڵیکردنی بڕیارەکەی ئاجێنتەکە
+            # 2. جێبەجێکردنی بڕیارەکە
             if not decision.get("should_publish", False):
-                print(f"🛑 Agent Rejected: {decision.get('reason')}")
-                save_sent_hash(news_hash) # تا دووبارە نەیپشکنێتەوە
+                print(f"🛑 Agent Rejected this news: {decision.get('reason')}")
+                save_sent_hash(news_hash)
                 continue
 
             print(f"✅ Agent Approved: {decision.get('reason')}")
 
-            # دروستکردنی دەقی تێلیگرام
+            # ئامادەکردنی دەقی تێلیگرام
             tg_text = (
                 f"{decision.get('telegram_caption')}\n\n"
                 f"📰 سەرچاوە: TechCrunch AI\n"
@@ -194,11 +208,11 @@ async def check_and_publish_news(bot):
             post_to_facebook(fb_text, link)
 
             save_sent_hash(news_hash)
-            print(f"Successfully published by Agent: {title}")
+            print(f"🚀 Successfully published by Agent: {title}")
             await asyncio.sleep(2)
 
     except Exception as e:
-        print(f"Error during execution: {e}")
+        print(f"❌ Error during processing: {e}")
 
 
 async def main():
