@@ -2,103 +2,49 @@ name: Kurdish AI News - Telegram + Facebook
 
 on:
   schedule:
-    - cron: '0 * * * *'  # Every hour
-  workflow_dispatch:
+    - cron: '*/15 * * * *'  # هەموو ۱۵ خولەک جارێک دەیپشکنێت
+  workflow_dispatch:        # بۆ ڕانکردنی دەستی لە GitHub
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+          cache: 'pip'
 
-      - name: Install Professional Kurdish Fonts - Vazirmatn + Noto + DroidKufi
+      - name: Install Dependencies
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y libraqm0 libfribidi0 libharfbuzz0b fonts-noto-core fonts-noto fonts-noto-naskh-arabic fonts-noto-kufi-arabic fonts-dejavu-core -qq 2>/dev/null || true
-          
-          mkdir -p /tmp/fonts
-          mkdir -p ./fonts
-          cd /tmp/fonts
-          
-          echo "Downloading Vazirmatn - Best Kurdish Font..."
-          wget -q https://github.com/rastikerdar/vazirmatn/releases/download/v33.003/Vazirmatn-fonts.zip -O vazir.zip || echo "Vazir download failed, using fallback"
-          unzip -o vazir.zip "*.ttf" -d . 2>/dev/null || true
-          unzip -o vazir.zip "Vazirmatn/*.ttf" -d . 2>/dev/null || true
-          
-          # Copy all Vazirmatn fonts
-          find . -name "*.ttf" -type f -exec cp {} /usr/share/fonts/truetype/noto/ \; 2>/dev/null || true
-          find . -name "*.ttf" -type f -exec cp {} ./fonts/ \; 2>/dev/null || true
-          cp ./*.ttf ./fonts/ 2>/dev/null || true
-          cp ./Vazirmatn/*.ttf ./fonts/ 2>/dev/null || true
-          cp ./Vazirmatn/*.ttf /tmp/fonts/ 2>/dev/null || true
-          
-          # Also copy existing DroidKufi if in repo
-          if [ -f "${{ github.workspace }}/fonts/DroidKufi-Bold.ttf" ]; then
-            cp ${{ github.workspace }}/fonts/*.ttf /tmp/fonts/ 2>/dev/null || true
-            cp ${{ github.workspace }}/fonts/*.ttf ./fonts/ 2>/dev/null || true
-          fi
-          
-          # Copy from workspace fonts
-          if [ -d "./fonts" ]; then
-            sudo cp ./fonts/*.ttf /usr/share/fonts/truetype/noto/ 2>/dev/null || true
-            cp ./fonts/*.ttf /tmp/fonts/ 2>/dev/null || true
-          fi
-          
-          sudo fc-cache -fv > /dev/null 2>&1 || true
-          fc-cache -fv > /dev/null 2>&1 || true
-          
-          echo "=== Installed Kurdish Fonts ==="
-          fc-list | grep -i -E "vazir|noto.*arabic|droid.*kufi" | head -20 || true
-          ls -lh ./fonts/ 2>/dev/null | head -20 || true
-          ls -lh /tmp/fonts/*.ttf 2>/dev/null | head -20 || true
+          pip install --upgrade pip
+          pip install -r requirements.txt
 
-      - name: Install deps
-        run: |
-          pip install -r requirements.txt -q
-          pip install --upgrade --force-reinstall Pillow -q
-          python -c "from PIL import features; print('RAQM:', features.check('raqm'), 'HarfBuzz:', features.check('harfbuzz'))"
-          python -c "
-          import os
-          from PIL import ImageFont
-          fonts_to_check = ['/tmp/fonts/Vazirmatn-Black.ttf', '/tmp/fonts/Vazirmatn-Bold.ttf', './fonts/Vazirmatn-Bold.ttf', '/usr/share/fonts/truetype/noto/Vazirmatn-Bold.ttf']
-          for f in fonts_to_check:
-              if os.path.exists(f):
-                  try:
-                      ImageFont.truetype(f, 20)
-                      print(f'✅ Can load: {f}')
-                  except Exception as e:
-                      print(f'❌ Cannot load {f}: {e}')
-          "
-
-      - name: Run Bot
+      - name: Run Bot Script
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
-          FB_ID: ${{ secrets.FB_ID }}
-          FB_TOKEN: ${{ secrets.FB_TOKEN }}
+          META_LLAMA_API_KEY: ${{ secrets.META_LLAMA_API_KEY }}
         run: |
           echo "Checking secrets..."
           if [ -z "$BOT_TOKEN" ]; then echo "❌ BOT_TOKEN missing"; else echo "✅ BOT_TOKEN set"; fi
-          if [ -z "$CHANNEL_ID" ]; then echo "❌ CHANNEL_ID missing"; else echo "✅ CHANNEL_ID set: $CHANNEL_ID"; fi
-          if [ -z "$FB_PAGE_ID" ]; then echo "❌ FB_PAGE_ID missing"; else echo "✅ FB_PAGE_ID set: $FB_PAGE_ID"; fi
-          if [ -z "$FB_PAGE_TOKEN" ]; then echo "❌ FB_PAGE_TOKEN missing - Facebook will be skipped!"; else echo "✅ FB_PAGE_TOKEN set (length ${#FB_PAGE_TOKEN})"; fi
+          if [ -z "$CHANNEL_ID" ]; then echo "❌ CHANNEL_ID missing"; else echo "✅ CHANNEL_ID set"; fi
+          if [ -z "$META_LLAMA_API_KEY" ]; then echo "❌ META_LLAMA_API_KEY missing"; else echo "✅ META_LLAMA_API_KEY set"; fi
           python bot.py
 
-      - name: Save history
+      - name: Save History (sent.txt)
         if: always()
         run: |
-          git config --local user.email "bot@kurdish-ai.com"
-          git config --local user.name "Kurdish AI Bot"
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action Bot"
           git add sent.txt || true
-          git commit -m "Update sent $(date -u)" || true
+          git commit -m "Update sent.txt history [skip ci]" || true
           git pull --rebase origin main || true
           git push || true
