@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import time
 import hashlib
 import requests
 import asyncio
@@ -22,7 +23,6 @@ FB_PAGE_ID = os.getenv("FB_PAGE_ID")
 FB_PAGE_TOKEN = os.getenv("FB_PAGE_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# دروستکردنی کلاینتی گووگڵ بە کتێبخانە نوێیەکە
 client = None
 if GEMINI_API_KEY:
     client = genai.Client(api_key=GEMINI_API_KEY)
@@ -44,8 +44,7 @@ def news_editor_agent(title, summary, link):
         print("⚠️ GEMINI_API_KEY is missing!")
         return {"should_publish": False, "reason": "No API Key"}
 
-    try:
-        prompt = f"""
+    prompt = f"""
 تو ئاجێنتێکی سەرنووسەری ژیر و شارەزای بەشی تەکنەلۆجیای. 
 ئەرکت هەڵسەنگاندن و وەرگێڕانی ئەم هەواڵەی خوارەوەیە بۆ زمانی کوردیی سۆرانیی زۆر پاراو، ڕوان، و ڕۆژنامەوانی:
 
@@ -66,36 +65,49 @@ def news_editor_agent(title, summary, link):
 }}
 """
 
-        # بەکارهێنانی مۆدێلی نوێی gemini-3.6-flash
-        response = client.models.generate_content(
-            model='gemini-3.6-flash',
-            contents=prompt,
-            config={'response_mime_type': 'application/json'}
-        )
-        
-        decision = json.loads(response.text)
-        return decision
-
-    except Exception as e:
-        print(f"❌ Agent Error: {e}")
-        return {"should_publish": False, "reason": "AI Error"}
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model='gemini-3.6-flash',
+                contents=prompt,
+                config={
+                    'response_mime_type': 'application/json'
+                }
+            )
+            decision = json.loads(response.text)
+            return decision
+        except Exception as e:
+            if "503" in str(e) and attempt < max_retries - 1:
+                wait_time = (attempt + 1) * 3
+                print(f"🔄 Server busy (503), retrying in {wait_time}s... (Attempt {attempt + 1}/{max_retries})")
+                time.sleep(wait_time)
+                continue
+            print(f"❌ Agent Error: {e}")
+            return {"should_publish": False, "reason": "AI Error"}
 
 
 def post_to_facebook(caption, link):
+    print(f"🔄 Attempting to post to Facebook Page ID: {FB_PAGE_ID}...")
     if not FB_PAGE_TOKEN or not FB_PAGE_ID:
+        print("⚠️ FB_PAGE_TOKEN or FB_PAGE_ID is missing in environment variables!")
         return False
     try:
         full_message = f"{caption}\n\n🔗 خوێندنەوەی تەواوی بابەتەکە:\n{link}"
-        r = requests.post(
-            f"https://graph.facebook.com/v18.0/{FB_PAGE_ID}/feed",
-            data={
-                "message": full_message,
-                "link": link,
-                "access_token": FB_PAGE_TOKEN
-            },
-            timeout=20
-        )
-        return "id" in r.json()
+        url = f"https://graph.facebook.com/v19.0/{FB_PAGE_ID}/feed"
+        payload = {
+            "message": full_message,
+            "access_token": FB_PAGE_TOKEN
+        }
+        r = requests.post(url, data=payload, timeout=20)
+        res = r.json()
+        print(f"📥 Facebook Response: {res}")
+        if "id" in res:
+            print(f"✅ Posted to Facebook successfully! Post ID: {res['id']}")
+            return True
+        else:
+            print(f"❌ Facebook API Error: {res}")
+            return False
     except Exception as e:
         print(f"❌ Facebook Exception: {e}")
         return False
