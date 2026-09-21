@@ -2,45 +2,28 @@ name: Kurdish AI News Agent
 
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    # هەموو ٦ کاتژمێر جارێک ڕەن دەبێت (ڕۆژی ٤ جار)
+    - cron: '0 */6 * * *'
   workflow_dispatch:
 
 jobs:
-  run-agent:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-          cache: 'pip'
-
-      - name: Install Dependencies
+      - name: Install dependencies
         run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Run AI Agent
+          python -m pip install --upgrade pip
+          pip install google-genai python-telegram-bot feedparser requests
+      - name: Run Bot
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: |
-          python bot.py
-
-      - name: Save History
-        if: always()
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action Bot"
-          git add sent.txt || true
-          git commit -m "Update sent.txt history [skip ci]" || true
-          git pull --rebase origin main || true
-          git push || true
+        run: python bot.py
