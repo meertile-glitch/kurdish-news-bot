@@ -1,4 +1,7 @@
 python-telegram-bot==20.7
-feedparser==6.0.11
-requests==2.31.0
-groq==0.9.0
+feedparser
+requests
+Pillow>=10.0.0
+arabic-reshaper
+python-bidi
+deep-translator
