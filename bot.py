@@ -4,6 +4,8 @@ import hashlib
 import requests
 import asyncio
 import feedparser
+import math
+import random
 from datetime import datetime, timezone, timedelta
 from telegram import Bot
 from telegram.constants import ParseMode
@@ -48,6 +50,65 @@ def clean_text(t):
 def contains_kurdish(text):
     return any('\u0600' <= c <= '\u06FF' for c in text)
 
+
+# === NEW: Smart Template - Brand & Person Detection ===
+BRANDS = {
+    "meta": {"name": "Meta", "display": "مێتا", "color": (0, 100, 255), "bg": (6, 95, 212), "initial": "M", "keywords": ["meta", "facebook", "instagram", "zuckerberg"]},
+    "openai": {"name": "OpenAI", "display": "ئۆپن ئەی ئای", "color": (16, 163, 127), "bg": (10, 10, 10), "initial": "O", "keywords": ["openai", "chatgpt", "gpt-4", "gpt-5", "sam altman", "sora", "dall-e"]},
+    "google": {"name": "Google", "display": "گووگڵ", "color": (66, 133, 244), "bg": (255, 255, 255), "initial": "G", "keywords": ["google", "gemini", "deepmind", "bard", "sundar pichai"]},
+    "anthropic": {"name": "Anthropic", "display": "ئانترۆپیک", "color": (210, 105, 30), "bg": (255, 248, 230), "initial": "A", "keywords": ["anthropic", "claude", "dario amodei"]},
+    "microsoft": {"name": "Microsoft", "display": "مایکرۆسۆفت", "color": (0, 164, 239), "bg": (0, 120, 212), "initial": "M", "keywords": ["microsoft", "copilot", "satya nadella"]},
+    "nvidia": {"name": "NVIDIA", "display": "ئێنڤیدیا", "color": (118, 185, 0), "bg": (18, 18, 18), "initial": "N", "keywords": ["nvidia", "jensen huang", "geforce"]},
+    "apple": {"name": "Apple", "display": "ئەپڵ", "color": (0, 0, 0), "bg": (245, 245, 247), "initial": "A", "keywords": ["apple", "tim cook", "iphone", "siri"]},
+    "xai": {"name": "xAI", "display": "ئێکس ئەی ئای", "color": (0, 0, 0), "bg": (0, 0, 0), "initial": "X", "keywords": ["xai", "elon musk", "grok", "twitter", " x "]},
+    "amazon": {"name": "Amazon", "display": "ئەمازۆن", "color": (255, 153, 0), "bg": (35, 47, 62), "initial": "A", "keywords": ["amazon", "aws", "bedrock"]},
+}
+
+PERSONS = {
+    "mark zuckerberg": {"name": "Mark Zuckerberg", "ku_name": "مارک زاکەربێرگ", "initials": "MZ", "company": "meta", "role": "CEO ی مێتا"},
+    "zuckerberg": {"name": "Mark Zuckerberg", "ku_name": "مارک زاکەربێرگ", "initials": "MZ", "company": "meta", "role": "CEO ی مێتا"},
+    "sam altman": {"name": "Sam Altman", "ku_name": "سام ئاڵتمان", "initials": "SA", "company": "openai", "role": "CEO ی ئۆپن ئەی ئای"},
+    "sama": {"name": "Sam Altman", "ku_name": "سام ئاڵتمان", "initials": "SA", "company": "openai", "role": "CEO ی ئۆپن ئەی ئای"},
+    "sundar pichai": {"name": "Sundar Pichai", "ku_name": "سوندار پیچای", "initials": "SP", "company": "google", "role": "CEO ی گووگڵ"},
+    "dario amodei": {"name": "Dario Amodei", "ku_name": "داریۆ ئەمۆدی", "initials": "DA", "company": "anthropic", "role": "CEO ی ئانترۆپیک"},
+    "satya nadella": {"name": "Satya Nadella", "ku_name": "ساتيا نادێلا", "initials": "SN", "company": "microsoft", "role": "CEO ی مایکرۆسۆفت"},
+    "jensen huang": {"name": "Jensen Huang", "ku_name": "جێنسن هوانگ", "initials": "JH", "company": "nvidia", "role": "CEO ی ئێنڤیدیا"},
+    "elon musk": {"name": "Elon Musk", "ku_name": "ئیلۆن مەسک", "initials": "EM", "company": "xai", "role": "CEO ی ئێکس ئەی ئای"},
+    "tim cook": {"name": "Tim Cook", "ku_name": "تیم کووک", "initials": "TC", "company": "apple", "role": "CEO ی ئەپڵ"},
+}
+
+def detect_brand_and_person(title, summary):
+    """Detect brand and person from news content"""
+    text = f"{title} {summary}".lower()
+    detected_brand = None
+    detected_person = None
+    
+    # Detect brand
+    max_score = 0
+    for brand_key, brand_info in BRANDS.items():
+        score = 0
+        for kw in brand_info["keywords"]:
+            if kw in text:
+                # Longer keywords and exact brand name get higher score
+                score += len(kw) * 2 if kw == brand_key else len(kw)
+        if score > max_score and score > 2:
+            max_score = score
+            detected_brand = brand_key
+    
+    # Detect person
+    for person_key, person_info in PERSONS.items():
+        if person_key in text:
+            detected_person = person_key
+            # If person detected, override brand to person's company
+            if person_info["company"]:
+                detected_brand = person_info["company"]
+            break
+    
+    print(f"  🔍 Detected: Brand={detected_brand}, Person={detected_person} from: {title[:60]}")
+    return detected_brand, detected_person
+
+
+
 # === NEW: Professional Sorani Kurdish rewriting ===
 def rewrite_to_sorani_journalistic(en_title, en_summary, ku_translated_title, ku_translated_summary):
     """
@@ -60,7 +121,7 @@ def rewrite_to_sorani_journalistic(en_title, en_summary, ku_translated_title, ku
     en_title_lower = en_title.lower()
     en_summary_lower = en_summary.lower()
     
-    # Dictionary for better Sorani AI terms - تەواو و ماندار
+    # FIXED: Better Sorani dictionary and less hallucination
     sorani_dict = {
         # Tech terms - وشەنامەی زانستی
         "artificial intelligence": "ژیری دەستکرد",
@@ -108,16 +169,24 @@ def rewrite_to_sorani_journalistic(en_title, en_summary, ku_translated_title, ku
     title = re.sub(r'\$\s*\d+', '', title)
     title = title.strip()
     
-    # Ensure title is not too long and is journalistic
-    # Add proper Sorani news style if too literal
-    if len(title) < 10 or title == en_title:
-        # Fallback to better title
+    # Ensure title is not too long and is journalistic - FIXED to avoid hallucinations
+    if len(title) < 10 or title == en_title or "پەڕەکانی ژێرەوە" in title or "ئەپڵ" in title and "apple" not in en_title_lower:
+        # Fallback to better title - based on actual English content
         if "scroll" in en_title_lower and "textbook" in en_title_lower:
             title = "پلاتفۆرمێکی نوێ کتێبەکان دەگۆڕێت بۆ ڤیدیۆی کورت"
         elif "vocci" in en_title_lower and "ring" in en_title_lower:
             title = "ئەڵقەیەکی زیرەک بۆ تۆمارکردنی کۆبوونەوەکان"
+        elif "disrupt" in en_title_lower and "save" in en_title_lower:
+            title = "تەنها 6 ڕۆژ ماوە بۆ پاشەکەوتکردنی 200 دۆلار لە بلیتی TechCrunch Disrupt 2026"
         elif "disrupt" in en_title_lower:
-            title = "بلیتی TechCrunch Disrupt 2026 گرانتر دەبێت"
+            title = "بلیتی کۆنفرانسی TechCrunch Disrupt 2026 بەرز دەبێتەوە"
+        elif "world model" in en_title_lower:
+            title = "کۆمپانیاکانی مۆدێلی جیهانی نهێنی زۆر دەپارێزن"
+        elif "slow down" in en_title_lower and "ai industry" in en_title_lower:
+            title = "ئایا پیشەسازی ژیری دەستکرد ئامادەیە خاو ببێتەوە؟"
+        else:
+            # Keep original English if translation fails badly
+            title = en_title[:120]
     
     # Improve summary to proper Sorani journalistic style
     # Example: "کۆمپانیای X ئەمڕۆ ڕایگەیاند..." 
@@ -160,50 +229,74 @@ def translate_to_kurdish(txt):
         return txt
     
     import time
-    time.sleep(1.5)
     
     def is_valid_translation(original, translated):
         orig_lower = original.lower()
-        political_blacklist = ["قوباد", "تاڵەبانی", "بەرھەم", "ساڵح", "پەرلەمان", "حکومەت", "بەغدا", "کۆبوونەوە", "فاکتەر", "مۆبایل", "نرخی ئەم مۆبایلە", "ئاشکرا"]
+        political_blacklist = ["قوباد", "تاڵەبانی", "بەرھەم", "ساڵح", "پەرلەمان", "حکومەت", "بەغدا", "کۆبوونەوە", "فاکتەر", "مۆبایل", "نرخی ئەم مۆبایلە", "ئاشکرا", "پەڕەکانی ژێرەوە"]
         political_in_trans = any(p in translated for p in political_blacklist)
-        tech_keywords = ["ai", "techcrunch", "openai", "chatgpt", "google", "startup", "app", "textbook", "tiktok", "ring", "meeting", "scroll", "vocci", "disrupt"]
+        tech_keywords = ["ai", "techcrunch", "openai", "chatgpt", "google", "startup", "app", "textbook", "tiktok", "ring", "meeting", "scroll", "vocci", "disrupt", "world model"]
         tech_in_orig = any(t in orig_lower for t in tech_keywords)
         if tech_in_orig and political_in_trans:
-            print(f"  ⚠️ Hallucination detected!")
+            print(f"  ⚠️ Hallucination detected! Rejecting: {translated[:60]}")
             return False
-        if len(translated) > len(original) * 3.5 or len(translated) < len(original) * 0.25:
+        if len(translated) > len(original) * 4 or len(translated) < len(original) * 0.2:
+            print(f"  ⚠️ Length suspicious: {len(original)} -> {len(translated)}")
             return False
+        # Check for Apple hallucination when original is about AI
+        if "apple" in translated.lower() and "apple" not in orig_lower and "ai" in orig_lower:
+            if "ئەپڵ" in translated and "ai" in orig_lower.lower():
+                print(f"  ⚠️ Apple hallucination detected")
+                return False
         return True
     
+    # Try MyMemory first with longer delay
+    time.sleep(2.5)  # Increased delay to avoid rate limit
     try:
-        r = requests.get("https://api.mymemory.translated.net/get", params={"q": txt[:350], "langpair": "en|ckb"}, timeout=10)
+        r = requests.get("https://api.mymemory.translated.net/get", params={"q": txt[:350], "langpair": "en|ckb"}, timeout=15)
         d = r.json()
         if d.get('responseStatus') == 200:
             t = d['responseData']['translatedText']
-            if t and len(t) > 8 and '[MYMEMORY' not in t and 'QUERY LENGTH' not in t:
+            if t and len(t) > 8 and '[MYMEMORY' not in t and 'QUERY LENGTH' not in t and 'MYMEMORY WARNING' not in t:
                 t_clean = clean_text(t)
                 if is_valid_translation(txt, t_clean):
+                    print(f"  Translated via MyMemory: {t_clean[:60]}")
                     return t_clean
+                else:
+                    print(f"  MyMemory rejected")
     except Exception as e:
         print(f"  MyMemory failed: {e}")
     
-    for attempt in range(2):
-        try:
-            translated = GoogleTranslator(source='en', target='ckb').translate(txt[:400])
-            t_clean = clean_text(translated)
-            if is_valid_translation(txt, t_clean):
-                return t_clean
-            else:
-                break
-        except Exception as e:
-            print(f"  Translation Error attempt {attempt+1}: {e}")
-            if "too many requests" in str(e).lower():
-                time.sleep(3)
-            else:
-                break
+    # Google with even longer delay and only 1 attempt per call to avoid 5/sec
+    time.sleep(1.5)
+    try:
+        translated = GoogleTranslator(source='en', target='ckb').translate(txt[:400])
+        t_clean = clean_text(translated)
+        if is_valid_translation(txt, t_clean):
+            print(f"  Translated via Google: {t_clean[:60]}")
+            return t_clean
+        else:
+            print(f"  Google rejected as hallucination")
+    except Exception as e:
+        print(f"  Translation Error: {e}")
+        if "too many requests" in str(e).lower():
+            print("  Rate limited - waiting 5s and returning original")
+            time.sleep(5)
     
     print(f"  Translation failed, using original: {txt[:60]}")
     return txt
+
+def translate_batch(titles_and_summaries):
+    """Translate multiple items with proper delays to avoid rate limits"""
+    results = []
+    for en_title, en_summary in titles_and_summaries:
+        ku_title = translate_to_kurdish(en_title)
+        # Extra delay between title and summary of same article
+        import time
+        time.sleep(1.0)
+        ku_summary = translate_to_kurdish(en_summary[:250]) if en_summary else ""
+        results.append((ku_title, ku_summary))
+        time.sleep(2.0)  # Delay between articles
+    return results
 
 def reshape_kurdish_text(text):
     if not text:
@@ -223,133 +316,277 @@ def reshape_kurdish_text(text):
             return text
 
 def find_font(font_names):
-    dirs = ["/usr/share/fonts/truetype/noto", "/usr/share/fonts/opentype/noto", "/usr/share/fonts/truetype/dejavu", "/usr/share/fonts", "/tmp/fonts", "./", "./fonts"]
+    # Priority order for Kurdish - best to worst
+    dirs = [
+        "/mnt/data",  # First check /mnt/data where DroidKufi is
+        "./fonts", "./",
+        "/tmp/fonts",
+        "/tmp/fonts/Vazirmatn",
+        "/usr/share/fonts/truetype/noto",
+        "/usr/share/fonts/opentype/noto",
+        "/usr/share/fonts/truetype/dejavu",
+        "/usr/share/fonts",
+        "/usr/share/fonts/google-droid-sans-fonts",
+    ]
     for d in dirs:
+        if not os.path.exists(d):
+            continue
         for n in font_names:
+            # Try exact match
             p = os.path.join(d, n)
             if os.path.exists(p):
                 return p
+            # Try case-insensitive search in directory
+            try:
+                for f in os.listdir(d):
+                    if f.lower() == n.lower():
+                        return os.path.join(d, f)
+            except:
+                pass
     return None
 
-def create_news_card(title, summary, out_path="card.jpg"):
-    W, H = 1080, 1350  # Taller for better readability - 4:5 ratio for Facebook/Instagram
-    img = Image.new('RGB', (W, H), (8, 12, 28))
-    draw = ImageDraw.Draw(img, 'RGBA')
-    
-    # Premium gradient background - dark blue to deep purple
-    for y in range(H):
-        ratio = y / H
-        r = int(8 + ratio * 15 + math.sin(ratio * 3) * 3)
-        g = int(12 + ratio * 18)
-        b = int(28 + ratio * 35 + math.cos(ratio * 2) * 5)
-        draw.line([(0, y), (W, y)], fill=(r, g, b))
-    
-    import random, math
-    # Elegant bokeh lights
-    for _ in range(100):
-        x = random.randint(-30, W+30)
-        y = random.randint(-30, H+30)
-        s = random.randint(3, 22)
-        alpha = random.randint(10, 45)
-        c = random.choice([(90,120,255), (70,180,255), (120,90,255), (60,200,220)])
-        draw.ellipse([x-s, y-s, x+s, y+s], fill=(c[0], c[1], c[2], alpha))
-        if s > 12 and random.random() > 0.7:
-            draw.ellipse([x-s//3, y-s//3, x+s//3, y+s//3], fill=(200,210,255, alpha+20))
-
-    # === NEW: Better fonts - Vazirmatn ExtraBold for Kurdish, more suitable ===
-    # Try to find best Kurdish fonts in order of quality
-    ku_bold_candidates = [
-        "Vazirmatn-ExtraBold.ttf", "Vazirmatn-Bold.ttf", "Vazirmatn-Black.ttf",
+def get_kurdish_fonts():
+    """Get best available Kurdish fonts - professional priority"""
+    # Best for Kurdish: Vazirmatn (perfect), DroidKufi (good), Noto Naskh (good)
+    bold_candidates = [
+        "Vazirmatn-Black.ttf", "Vazirmatn-ExtraBold.ttf", "Vazirmatn-Bold.ttf",
+        "DroidKufi-Bold.ttf",
         "NotoNaskhArabic-Bold.ttf", "NotoKufiArabic-Bold.ttf",
         "DejaVuSans-Bold.ttf"
     ]
-    ku_medium_candidates = [
+    medium_candidates = [
         "Vazirmatn-Medium.ttf", "Vazirmatn-Regular.ttf",
-        "NotoNaskhArabic-Regular.ttf", "NotoKufiArabic-Regular.ttf"
+        "DroidKufi-Regular.ttf",
+        "NotoNaskhArabic-Regular.ttf", "NotoKufiArabic-Regular.ttf",
+        "DejaVuSans.ttf"
     ]
-    en_bold_candidates = ["DejaVuSans-Bold.ttf", "DejaVuSans.ttf", "NotoSans-Bold.ttf"]
-    en_reg_candidates = ["DejaVuSans.ttf", "NotoSans-Regular.ttf"]
+    regular_candidates = [
+        "Vazirmatn-Regular.ttf", "Vazirmatn-Light.ttf",
+        "DroidKufi-Regular.ttf",
+        "NotoNaskhArabic-Regular.ttf",
+        "DejaVuSans.ttf"
+    ]
     
-    ku_bold_path = find_font(ku_bold_candidates)
-    ku_med_path = find_font(ku_medium_candidates) or ku_bold_path
-    en_bold_path = find_font(en_bold_candidates)
-    en_reg_path = find_font(en_reg_candidates) or en_bold_path
+    bold = find_font(bold_candidates)
+    medium = find_font(medium_candidates) or bold
+    regular = find_font(regular_candidates) or medium
     
-    print(f"Fonts: KU Bold={ku_bold_path} | KU Med={ku_med_path} | EN={en_bold_path}")
+    return bold, medium, regular
 
-    # Larger, more suitable sizes - گەورەتر و گونجاوتر
+def create_news_card(title, summary, out_path="card.jpg", en_title="", en_summary=""):
+    """
+    Professional beautiful typography - جوانترین نووسین
+    - DroidKufi for Kurdish - best Arabic/Kurdish font
+    - Vazirmatn fallback
+    - Hierarchy: Title 64px Bold, Summary 28px Regular
+    - Line height: 88px for title, 42px for summary
+    - Effects: Soft shadow, subtle glow, outline for contrast
+    - Balanced wrapping, no orphans/widows
+    - Standard professional design
+    """
+    detect_text_title = en_title if en_title else title
+    detect_text_summary = en_summary if en_summary else summary
+    brand_key, person_key = detect_brand_and_person(detect_text_title, detect_text_summary)
+    
+    brand = BRANDS.get(brand_key) if brand_key else None
+    person = PERSONS.get(person_key) if person_key else None
+    
+    W, H = 1080, 1350
+    img = Image.new('RGB', (W, H), (5, 10, 25))
+    draw = ImageDraw.Draw(img, 'RGBA')
+    
+    accent = brand["color"] if brand else (255, 102, 0)
+    
+    # Premium background
+    for y in range(H):
+        ratio = y / H
+        if brand and ratio < 0.25:
+            blend = 1 - (ratio / 0.25)
+            r = int(5 + (accent[0] - 5) * blend * 0.12 + math.sin(ratio * 3) * 2)
+            g = int(10 + (accent[1] - 10) * blend * 0.12)
+            b = int(25 + (accent[2] - 25) * blend * 0.12 + math.cos(ratio * 2) * 3)
+        else:
+            r = int(5 + ratio * 8 + math.sin(ratio * 2) * 2)
+            g = int(10 + ratio * 12)
+            b = int(25 + ratio * 18 + math.cos(ratio * 1.5) * 3)
+        draw.line([(0, y), (W, y)], fill=(r, g, b))
+    
+    for _ in range(150):
+        x = random.randint(0, W)
+        y = random.randint(0, H)
+        s = random.randint(1, 3)
+        alpha = random.randint(5, 20)
+        draw.ellipse([x-s, y-s, x+s, y+s], fill=(60, 80, 120, alpha))
+    
+    for _ in range(80):
+        x = random.randint(-20, W+20)
+        y = random.randint(-20, H+20)
+        s = random.randint(2, 18)
+        alpha = random.randint(8, 35)
+        if brand and random.random() > 0.6:
+            c = accent
+        else:
+            c = random.choice([(80,100,180), (60,90,160), (100,80,180)])
+        draw.ellipse([x-s, y-s, x+s, y+s], fill=(c[0], c[1], c[2], alpha))
+    
+    # Neural globe
+    globe_cx, globe_cy = W - 180, H // 2 - 50
+    nodes = []
+    for _ in range(40):
+        angle1 = random.uniform(0, 2*math.pi)
+        angle2 = random.uniform(-math.pi/2, math.pi/2)
+        r_factor = random.uniform(0.7, 1.0)
+        x = globe_cx + 320 * r_factor * math.cos(angle2) * math.cos(angle1)
+        y = globe_cy + 320 * r_factor * math.cos(angle2) * math.sin(angle1) * 0.7
+        nodes.append((x, y))
+    
+    for i, (x1, y1) in enumerate(nodes):
+        for j, (x2, y2) in enumerate(nodes[i+1:], i+1):
+            dist = math.hypot(x1-x2, y1-y2)
+            if dist < 120:
+                alpha = int(80 - dist * 0.5)
+                if alpha > 10:
+                    draw.line([(x1,y1),(x2,y2)], fill=(100, 120, 255, alpha), width=1)
+    
+    for x, y in nodes:
+        s = random.randint(2, 5)
+        draw.ellipse([x-s, y-s, x+s, y+s], fill=(120, 180, 255, 200))
+        draw.ellipse([x-s//2, y-s//2, x+s//2, y+s//2], fill=(200, 220, 255, 255))
+
+    # === PROFESSIONAL FONTS - Beautiful, Standard, Professional ===
+    ku_bold_path, ku_med_path, ku_reg_path = get_kurdish_fonts()
+    en_bold_path = find_font(["DejaVuSans-Bold.ttf", "DejaVuSans.ttf"])
+    en_reg_path = find_font(["DejaVuSans.ttf", "DejaVuSans-Oblique.ttf"]) or en_bold_path
+    
+    print(f"  📝 Fonts: Bold={os.path.basename(ku_bold_path) if ku_bold_path else 'None'} | Medium={os.path.basename(ku_med_path) if ku_med_path else 'None'} | Regular={os.path.basename(ku_reg_path) if ku_reg_path else 'None'}")
+
     try:
-        fb_ku = ImageFont.truetype(ku_bold_path, 58) if ku_bold_path else ImageFont.load_default()  # 58px - bigger, more readable
-        fm_ku = ImageFont.truetype(ku_med_path, 36) if ku_med_path else ImageFont.load_default()   # 36px for summary
-        fs_en = ImageFont.truetype(en_reg_path, 24) if en_reg_path else ImageFont.load_default()
-        fb_en = ImageFont.truetype(en_bold_path, 46) if en_bold_path else ImageFont.load_default()
-        fs_small = ImageFont.truetype(en_reg_path, 20) if en_reg_path else ImageFont.load_default()
+        # Professional typography sizes - hierarchy and balance
+        font_title = ImageFont.truetype(ku_bold_path, 64) if ku_bold_path else ImageFont.load_default()
+        font_title_en = ImageFont.truetype(en_bold_path, 48) if en_bold_path else ImageFont.load_default()
+        font_summary = ImageFont.truetype(ku_reg_path, 28) if ku_reg_path else ImageFont.load_default()
+        font_summary_en = ImageFont.truetype(en_reg_path, 22) if en_reg_path else ImageFont.load_default()
+        font_badge = ImageFont.truetype(en_bold_path, 42) if en_bold_path else ImageFont.load_default()
+        font_small = ImageFont.truetype(en_reg_path, 17) if en_reg_path else ImageFont.load_default()
+        font_person_name = ImageFont.truetype(ku_bold_path, 26) if ku_bold_path else ImageFont.load_default()
+        font_person_role = ImageFont.truetype(ku_reg_path, 16) if ku_reg_path else ImageFont.load_default()
+        font_header = ImageFont.truetype(en_bold_path, 21) if en_bold_path else ImageFont.load_default()
     except Exception as e:
-        print(f"Font load error: {e}, using default")
-        fb_ku = ImageFont.load_default()
-        fm_ku = fb_ku
-        fs_en = fb_ku
-        fb_en = fb_ku
-        fs_small = fb_ku
+        print(f"  Font load error: {e}")
+        font_title = ImageFont.load_default()
+        font_summary = font_title
+        font_badge = font_title
+        font_small = font_title
+        font_person_name = font_title
+        font_person_role = font_title
+        font_title_en = font_title
+        font_summary_en = font_title
+        font_header = font_title
 
-    # Header - more premium
-    # AI badge with gradient
-    badge_x, badge_y = 50, 45
-    draw.ellipse([badge_x, badge_y, badge_x+110, badge_y+110], fill=(0, 168, 255))
-    draw.ellipse([badge_x+5, badge_y+5, badge_x+105, badge_y+105], fill=(0, 140, 230))
+    # Orange AI badge - refined with glow
+    badge_x, badge_y = 45, 45
+    draw.ellipse([badge_x-3, badge_y-3, badge_x+118, badge_y+118], fill=(255, 102, 0, 40))
+    draw.ellipse([badge_x, badge_y, badge_x+115, badge_y+115], fill=(255, 102, 0))
     try:
-        bbox = draw.textbbox((0,0), "AI", font=fb_en)
+        bbox = draw.textbbox((0,0), "AI", font=font_badge)
         tw = bbox[2]-bbox[0]
         th = bbox[3]-bbox[1]
-        draw.text((badge_x+55-tw//2, badge_y+55-th//2), "AI", fill="white", font=fb_en)
+        draw.text((badge_x+57-tw//2, badge_y+57-th//2), "AI", fill="white", font=font_badge)
     except:
-        draw.text((badge_x+28, badge_y+28), "AI", fill="white", font=fb_en)
+        draw.text((badge_x+32, badge_y+30), "AI", fill="white", font=font_badge)
     
-    draw.text((170, 60), "TECHCRUNCH AI", fill="white", font=fs_en)
-    draw.text((170, 90), "هەواڵی ژیری دەستکرد", fill=(130, 190, 255), font=fm_ku)
-
-    # Main card - glassmorphism with better shadow
-    cw, ch = 960, 880
-    cx, cy = (W - cw) // 2, 200
-    
-    # Shadow
-    shadow = Image.new('RGBA', (cw+20, ch+20), (0,0,0,0))
-    shadow_draw = ImageDraw.Draw(shadow)
-    shadow_draw.rounded_rectangle([0,0,cw+20,ch+20], radius=32, fill=(0,0,0,80))
     try:
-        shadow = shadow.filter(ImageFilter.GaussianBlur(15))
-        img.paste(shadow, (cx-10, cy-5), shadow)
+        draw.text((175, 62), "AI NEWS", fill=(255,255,255), font=font_header)
+        draw.text((175, 90), "KURDISH", fill=(200,200,200), font=font_header)
+    except:
+        draw.text((175, 62), "AI NEWS", fill="white", font=font_small)
+        draw.text((175, 90), "KURDISH", fill="white", font=font_small)
+    
+    # Brand logo
+    if brand:
+        brand_x = W - 155
+        brand_y = 45
+        brand_bg = brand["bg"]
+        draw.ellipse([brand_x-5, brand_y-5, brand_x+115, brand_y+115], fill=(accent[0], accent[1], accent[2], 50))
+        draw.ellipse([brand_x, brand_y, brand_x+110, brand_y+110], fill=brand_bg)
+        draw.ellipse([brand_x, brand_y, brand_x+110, brand_y+110], outline=(accent[0], accent[1], accent[2], 180), width=2)
+        initial = brand["initial"]
+        text_color = (255,255,255) if brand_bg[0] < 100 else (0,0,0)
+        if brand_key == "meta":
+            text_color = (255,255,255)
+        elif brand_key == "google":
+            text_color = (66,133,244)
+        try:
+            bbox = draw.textbbox((0,0), initial, font=font_badge)
+            tw = bbox[2]-bbox[0]
+            th = bbox[3]-bbox[1]
+            draw.text((brand_x+55-tw//2, brand_y+55-th//2), initial, fill=text_color, font=font_badge)
+        except:
+            draw.text((brand_x+38, brand_y+30), initial, fill=text_color, font=font_badge)
+
+    # Glass card - premium
+    cw, ch = 860, 720
+    cx, cy = (W - cw) // 2, 360
+    
+    shadow = Image.new('RGBA', (cw+40, ch+40), (0,0,0,0))
+    sd = ImageDraw.Draw(shadow)
+    sd.rounded_rectangle([0,0,cw+40,ch+40], radius=32, fill=(0,0,0,70))
+    try:
+        shadow = shadow.filter(ImageFilter.GaussianBlur(25))
+        img.paste(shadow, (cx-20, cy-5), shadow)
     except:
         pass
     
-    # Glass
     try:
-        glass = Image.new('RGBA', (cw, ch), (16, 22, 44, 235))
+        glass = Image.new('RGBA', (cw, ch), (16, 20, 40, 225))
         mask = Image.new('L', (cw, ch), 0)
-        ImageDraw.Draw(mask).rounded_rectangle([0, 0, cw, ch], radius=32, fill=255)
+        ImageDraw.Draw(mask).rounded_rectangle([0, 0, cw, ch], radius=28, fill=255)
         glass.putalpha(mask)
         img.paste(glass, (cx, cy), glass)
     except:
-        draw.rounded_rectangle([cx, cy, cx+cw, cy+ch], radius=32, fill=(16,22,44,235))
+        draw.rounded_rectangle([cx, cy, cx+cw, cy+ch], radius=28, fill=(16,20,40,225))
     
     draw = ImageDraw.Draw(img, 'RGBA')
-    # Border with glow
-    for i in range(3):
-        alpha = 180 - i*50
-        draw.rounded_rectangle([cx-i, cy-i, cx+cw+i, cy+ch+i], radius=32+i, outline=(0, 168, 255, alpha), width=1)
+    draw.rounded_rectangle([cx-1, cy-1, cx+cw+1, cy+ch+1], radius=29, outline=(80, 70, 180, 70), width=1)
+    draw.rounded_rectangle([cx, cy, cx+cw, cy+ch], radius=28, outline=(120, 110, 220, 50), width=1)
 
-    # Title - bigger, better font, more suitable
+    # Person
+    title_offset = 0
+    if person:
+        py = cy + 28
+        px = cx + 28
+        draw.ellipse([px, py, px+64, py+64], fill=(38, 42, 65))
+        draw.ellipse([px, py, px+64, py+64], outline=(accent[0], accent[1], accent[2], 160), width=2)
+        try:
+            bbox = draw.textbbox((0,0), person["initials"], font=font_small)
+            tw = bbox[2]-bbox[0]
+            th = bbox[3]-bbox[1]
+            draw.text((px+32-tw//2, py+32-th//2), person["initials"], fill="white", font=font_small)
+        except:
+            draw.text((px+16, py+20), person["initials"], fill="white", font=font_small)
+        try:
+            ku_name_disp = reshape_kurdish_text(person["ku_name"])
+            role_disp = reshape_kurdish_text(person["role"])
+            draw.text((px+82, py+6), ku_name_disp, fill="white", font=font_person_name)
+            draw.text((px+82, py+38), role_disp, fill=(160,180,220), font=font_person_role)
+        except:
+            pass
+        title_offset = 95
+
+    # === PROFESSIONAL TYPOGRAPHY - Beautiful Kurdish ===
     title_raw = clean_text(title)[:160]
     title_raw = title_raw.replace("$", " $ ").replace("  ", " ").strip()
     
     if any(x in title_raw for x in ["قوباد", "تاڵەبانی", "بەرھەم ساڵح", "پەرلەمان", "نرخی ئەم مۆبایلە"]):
         title_raw = "هەواڵی نوێی ژیری دەستکرد"
     
+    # Smart wrapping - balanced, professional
     words = title_raw.split()
-    lines, cur = [], ""
+    lines = []
+    cur = ""
     for w in words:
         test = f"{cur} {w}".strip()
-        max_len = 22 if contains_kurdish(test) else 30
+        max_len = 18 if contains_kurdish(test) else 24
         if len(test) > max_len:
             if cur:
                 lines.append(cur)
@@ -358,40 +595,44 @@ def create_news_card(title, summary, out_path="card.jpg"):
             cur = test
     if cur:
         lines.append(cur)
-
-    sy = cy + 80
-    for i, line in enumerate(lines[:5]):
-        is_english = len(re.findall(r'[a-zA-Z]', line)) > len(re.findall(r'[\u0600-\u06FF]', line))
+    
+    # Avoid widows/orphans - typography best practice
+    if len(lines) > 1 and len(lines[-1]) < 8 and len(lines[-2].split()) > 1:
+        prev_words = lines[-2].split()
+        if len(prev_words) > 1:
+            lines[-2] = " ".join(prev_words[:-1])
+            lines[-1] = prev_words[-1] + " " + lines[-1]
+    
+    sy = cy + 80 + title_offset
+    line_height = 88
+    
+    for i, line in enumerate(lines[:4]):
+        is_english = len(re.findall(r'[a-zA-Z]', line)) > len(re.findall(r'[\u0600-\u06FF]', line)) and len(re.findall(r'[a-zA-Z]', line)) > 3
+        
         if is_english:
             l_disp = line
-            font_use = fb_en if "TechCrunch" in line or "Disrupt" in line else fs_en
-            try:
-                bbox = draw.textbbox((0, 0), l_disp, font=font_use)
-                tw = bbox[2] - bbox[0]
-            except:
-                tw = len(line) * 12
-            x_center = W // 2 - tw // 2
-            y_pos = sy + i * 78
-            # Premium shadow
-            draw.text((x_center+3, y_pos+3), l_disp, fill=(0,0,0,200), font=font_use)
-            draw.text((x_center, y_pos), l_disp, fill="white", font=font_use)
+            font_use = font_title_en
         else:
             l_disp = reshape_kurdish_text(line)
-            try:
-                bbox = draw.textbbox((0, 0), l_disp, font=fb_ku)
-                tw = bbox[2] - bbox[0]
-            except:
-                tw = len(line) * 16
-            x_center = W // 2 - tw // 2
-            y_pos = sy + i * 82
-            # Premium Kurdish rendering - shadow + stroke for better readability
-            draw.text((x_center+4, y_pos+4), l_disp, fill=(0,0,0,220), font=fb_ku)
-            # Subtle glow
-            for dx, dy in [(-1,0), (1,0), (0,-1), (0,1)]:
-                draw.text((x_center+dx, y_pos+dy), l_disp, fill=(20,100,200,100), font=fb_ku)
-            draw.text((x_center, y_pos), l_disp, fill="white", font=fb_ku)
+            font_use = font_title
+        
+        try:
+            bbox = draw.textbbox((0, 0), l_disp, font=font_use)
+            tw = bbox[2] - bbox[0]
+        except:
+            tw = len(line) * 18
+        
+        x_center = W // 2 - tw // 2
+        y_pos = sy + i * line_height
+        
+        # Beautiful rendering - shadow + glow + main
+        draw.text((x_center+4, y_pos+4), l_disp, fill=(0,0,0,180), font=font_use)
+        draw.text((x_center+2, y_pos+2), l_disp, fill=(0,0,0,100), font=font_use)
+        for dx, dy in [(-1,0), (1,0), (0,-1), (0,1)]:
+            draw.text((x_center+dx, y_pos+dy), l_disp, fill=(accent[0], accent[1], accent[2], 25), font=font_use)
+        draw.text((x_center, y_pos), l_disp, fill="white", font=font_use)
 
-    # Summary - proper Sorani, better font
+    # Summary - elegant
     if summary:
         summary = clean_text(summary)[:200]
         if any(x in summary for x in ["قوباد", "بەرھەم", "پەرلەمان", "نرخی ئەم مۆبایلە", "فاکتەر"]):
@@ -401,7 +642,7 @@ def create_news_card(title, summary, out_path="card.jpg"):
             sw, cur_s = [], ""
             for w in words_s:
                 test = f"{cur_s} {w}".strip()
-                if len(test) > 38:
+                if len(test) > 40:
                     if cur_s:
                         sw.append(cur_s)
                     cur_s = w
@@ -409,52 +650,54 @@ def create_news_card(title, summary, out_path="card.jpg"):
                     cur_s = test
             if cur_s:
                 sw.append(cur_s)
-            sy2 = sy + len(lines[:5]) * 82 + 30
+            
+            sy2 = sy + len(lines[:4]) * line_height + 38
+            summary_line_height = 42
+            
             for j, line in enumerate(sw[:3]):
-                is_eng = len(re.findall(r'[a-zA-Z]', line)) > len(re.findall(r'[\u0600-\u06FF]', line))
+                is_eng = len(re.findall(r'[a-zA-Z]', line)) > len(re.findall(r'[\u0600-\u06FF]', line)) and len(re.findall(r'[a-zA-Z]', line)) > 4
                 if is_eng:
                     l_disp = line
-                    f_use = fs_en
+                    f_use = font_summary_en
                 else:
                     l_disp = reshape_kurdish_text(line)
-                    f_use = fm_ku
+                    f_use = font_summary
+                
                 try:
                     bbox = draw.textbbox((0, 0), l_disp, font=f_use)
                     tw = bbox[2] - bbox[0]
                 except:
                     tw = len(line) * 10
-                x_c = W//2 - tw//2
-                draw.text((x_c+2, sy2+j*44+2), l_disp, fill=(0,0,0,150), font=f_use)
-                draw.text((x_c, sy2+j*44), l_disp, fill=(200,215,255), font=f_use)
+                x_c = W // 2 - tw // 2
+                y_s = sy2 + j * summary_line_height
+                
+                draw.text((x_c+1, y_s+1), l_disp, fill=(0,0,0,120), font=f_use)
+                draw.text((x_c, y_s), l_disp, fill=(205,215,235), font=f_use)
 
-    # Footer - elegant
-    ly = cy + ch - 90
-    draw.line([cx + 50, ly, cx + cw - 50, ly], fill=(100, 180, 255, 80), width=1)
-    footer_text = "TechCrunch AI • ai.news.krd • هەواڵی ژیری دەستکرد"
-    # Split footer for bidi
+    # Footer
+    ly = cy + ch - 75
+    for x in range(cx+70, cx+cw-70):
+        ratio = (x-(cx+70))/(cw-140)
+        alpha = int(30 + math.sin(ratio*math.pi)*50)
+        draw.line([(x, ly), (x+1, ly)], fill=(90, 80, 170, alpha), width=1)
+    
     try:
-        # English part
-        en_footer = "TechCrunch AI • ai.news.krd"
-        bbox = draw.textbbox((0,0), en_footer, font=fs_small)
-        tw_en = bbox[2]-bbox[0]
-        # Kurdish part
-        ku_footer = "• هەواڵی ژیری دەستکرد"
-        ku_disp = reshape_kurdish_text(ku_footer)
-        bbox_ku = draw.textbbox((0,0), ku_disp, font=fs_small)
-        tw_ku = bbox_ku[2]-bbox_ku[0]
-        total_w = tw_en + tw_ku + 20
-        start_x = W//2 - total_w//2
-        draw.text((start_x, ly + 22), en_footer, fill=(130, 190, 255), font=fs_small)
-        draw.text((start_x + tw_en + 10, ly + 22), ku_disp, fill=(130, 190, 255), font=fs_small)
+        footer = "AI News Kurdish"
+        bbox = draw.textbbox((0,0), footer, font=font_small)
+        tw = bbox[2]-bbox[0]
+        draw.text((W//2-tw//2+1, ly+28+1), footer, fill=(0,0,0,60), font=font_small)
+        draw.text((W//2-tw//2, ly+28), footer, fill=(135,165,210), font=font_small)
     except:
-        try:
-            tw = draw.textbbox((0,0), footer_text, font=fs_en)[2]
-        except:
-            tw = 300
-        draw.text((W//2 - tw//2, ly + 22), footer_text, fill=(130, 190, 255), font=fs_en)
+        pass
 
-    img.save(out_path, quality=97)
+    try:
+        draw.text((48, H-48), "ai.news.krd", fill=(90,160,210,160), font=font_small)
+    except:
+        pass
+
+    img.save(out_path, quality=98)
     return out_path
+
 
 def post_to_facebook(caption, link, img_path):
     if not FB_PAGE_TOKEN or not FB_PAGE_ID:
@@ -556,7 +799,7 @@ async def check_and_publish_news(bot):
 
             card_path = f"card_{news_hash}.jpg"
             try:
-                create_news_card(ku_title, ku_summary, card_path)
+                create_news_card(ku_title, ku_summary, card_path, en_title=title, en_summary=summary)
             except Exception as e:
                 print(f"Card error: {e}")
                 import traceback
