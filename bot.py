@@ -8,7 +8,7 @@ import feedparser
 from datetime import datetime
 from telegram import Bot
 from telegram.constants import ParseMode
-import google.generativeai as genai
+from google import genai
 
 try:
     from telegram import LinkPreviewOptions
@@ -22,8 +22,10 @@ FB_PAGE_ID = os.getenv("FB_PAGE_ID")
 FB_PAGE_TOKEN = os.getenv("FB_PAGE_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
+# دروستکردنی کلاینتی گووگڵ بە کتێبخانە نوێیەکە
+client = None
 if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+    client = genai.Client(api_key=GEMINI_API_KEY)
 
 TECHCRUNCH_AI_FEED = "https://techcrunch.com/category/artificial-intelligence/feed/"
 
@@ -38,13 +40,11 @@ def clean_text(t):
 
 
 def news_editor_agent(title, summary, link):
-    if not GEMINI_API_KEY:
+    if not client:
         print("⚠️ GEMINI_API_KEY is missing!")
         return {"should_publish": False, "reason": "No API Key"}
 
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        
         prompt = f"""
 تو ئاجێنتێکی سەرنووسەری ژیر و شارەزای بەشی تەکنەلۆجیای. 
 ئەرکت هەڵسەنگاندن و وەرگێڕانی ئەم هەواڵەی خوارەوەیە بۆ زمانی کوردیی سۆرانیی زۆر پاراو، ڕوان، و ڕۆژنامەوانی:
@@ -66,9 +66,11 @@ def news_editor_agent(title, summary, link):
 }}
 """
 
-        response = model.generate_content(
-            prompt, 
-            generation_config={"response_mime_type": "application/json"}
+        # بەکارهێنانی مۆدێلی هاوچەرخ لەگەڵ کتێبخانە نوێیەکە
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+            config={'response_mime_type': 'application/json'}
         )
         
         decision = json.loads(response.text)
