@@ -80,7 +80,7 @@ def news_editor_agent(title, summary, link):
         except Exception as e:
             err_str = str(e)
             if "429" in err_str:
-                print("⚠️ Daily Quota Exhausted on gemini-3.6-flash! Stopping retries.")
+                print("⚠️ Quota Exhausted on gemini-3.6-flash! Stopping retries.")
                 return {"should_publish": False, "reason": "Quota Exhausted"}
             if "503" in err_str and attempt < max_retries - 1:
                 wait_time = (attempt + 1) * 5
@@ -137,7 +137,8 @@ async def check_and_publish_news(bot):
         feed = feedparser.parse(TECHCRUNCH_AI_FEED)
         sent_hashes = get_sent_hashes()
 
-        for entry in reversed(feed.entries[:5]):
+        # تەنها ٢ دوایین هەواڵ دەپشکنێت بۆ ئەوەی لیمیتی فەیسبووک و گووگڵ نەپێکێت
+        for entry in reversed(feed.entries[:2]):
             title = clean_text(getattr(entry, 'title', ''))
             link = getattr(entry, 'link', '')
             summary = clean_text(getattr(entry, 'summary', ''))
