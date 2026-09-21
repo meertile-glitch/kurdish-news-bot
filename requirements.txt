@@ -1,7 +1,4 @@
-python-telegram-bot==20.7
-feedparser
-requests
-Pillow>=10.0.0
-arabic-reshaper
-python-bidi
-deep-translator
+python-telegram-bot>=20.7
+feedparser>=6.0.11
+requests>=2.31.0
+google-generativeai>=0.4.0
