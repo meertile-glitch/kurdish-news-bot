@@ -68,9 +68,8 @@ def news_editor_agent(title, summary, link):
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            # گۆڕدرا بۆ gemini-2.5-flash بۆ لادانی لیمیتی 20 requests/day
             response = client.models.generate_content(
-                model='gemini-2.5-flash',
+                model='gemini-3.6-flash',
                 contents=prompt,
                 config={
                     'response_mime_type': 'application/json'
@@ -81,9 +80,9 @@ def news_editor_agent(title, summary, link):
         except Exception as e:
             err_str = str(e)
             if "429" in err_str:
-                print("⚠️ Daily Quota Exhausted on this model (429)! Stopping retries.")
+                print("⚠️ Daily Quota Exhausted on gemini-3.6-flash! Stopping retries.")
                 return {"should_publish": False, "reason": "Quota Exhausted"}
-            if ("503" in err_str) and attempt < max_retries - 1:
+            if "503" in err_str and attempt < max_retries - 1:
                 wait_time = (attempt + 1) * 5
                 print(f"🔄 Server busy, waiting {wait_time}s... (Attempt {attempt + 1}/{max_retries})")
                 time.sleep(wait_time)
