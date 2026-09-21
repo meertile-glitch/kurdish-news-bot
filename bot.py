@@ -51,21 +51,60 @@ def translate_to_kurdish(txt):
     txt = clean_text(txt)
     if not txt:
         return ""
+    # Small delay to avoid 5 req/sec limit
+    import time
+    time.sleep(1.2)
+    
+    # Try 1: MyMemory (more generous)
     try:
-        translated = GoogleTranslator(source='en', target='ckb').translate(txt[:400])
-        return clean_text(translated)
+        r = requests.get("https://api.mymemory.translated.net/get", 
+                         params={"q": txt[:350], "langpair": "en|ckb"}, timeout=10)
+        d = r.json()
+        if d.get('responseStatus') == 200:
+            t = d['responseData']['translatedText']
+            if t and len(t) > 8 and '[MYMEMORY' not in t and 'QUERY LENGTH' not in t:
+                print(f"  Translated via MyMemory: {t[:60]}")
+                return clean_text(t)
     except Exception as e:
-        print(f"Translation Error: {e}")
-        return txt
+        print(f"  MyMemory failed: {e}")
+    
+    # Try 2: GoogleTranslator with retry
+    for attempt in range(2):
+        try:
+            translated = GoogleTranslator(source='en', target='ckb').translate(txt[:400])
+            print(f"  Translated via Google: {translated[:60]}")
+            return clean_text(translated)
+        except Exception as e:
+            print(f"  Translation Error (attempt {attempt+1}): {e}")
+            if "too many requests" in str(e).lower():
+                print("  Rate limited, waiting 3s...")
+                time.sleep(3)
+            else:
+                break
+    
+    # Fallback: return original cleaned
+    print(f"  Translation failed, using original: {txt[:60]}")
+    return txt
 
 def reshape_kurdish_text(text):
-    try:
-        reshaper = arabic_reshaper.ArabicReshaper(arabic_reshaper.config_for_true_type_font)
-        reshaped = reshaper.reshape(text)
-        return get_display(reshaped)
-    except Exception as e:
-        print(f"Reshape error: {e}")
+    if not text:
         return text
+    try:
+        # Method 1: simple reshape (works in all versions)
+        reshaped = arabic_reshaper.reshape(text)
+        return get_display(reshaped)
+    except Exception as e1:
+        try:
+            # Method 2: with config
+            config = arabic_reshaper.config_for_true_type_font
+            if callable(config):
+                config = config()
+            reshaper = arabic_reshaper.ArabicReshaper(configuration=config)
+            reshaped = reshaper.reshape(text)
+            return get_display(reshaped)
+        except Exception as e2:
+            print(f"Reshape error: {e1} / {e2} - returning original")
+            return text
 
 def find_font(font_names):
     dirs = [
@@ -349,6 +388,11 @@ async def check_and_publish_news(bot):
 async def main():
     bot = Bot(token=BOT_TOKEN)
     print(f"Bot started monitoring TechCrunch AI -> {CHANNEL_ID}")
+    print(f"FB_PAGE_ID: {'SET' if FB_PAGE_ID else 'NOT SET'} | FB_PAGE_TOKEN: {'SET (len '+str(len(FB_PAGE_TOKEN))+')' if FB_PAGE_TOKEN else 'NOT SET'}")
+    if not FB_PAGE_ID or not FB_PAGE_TOKEN:
+        print("⚠️ Facebook posting disabled - set FB_PAGE_ID and FB_PAGE_TOKEN env vars")
+        print("   For local: export FB_PAGE_ID=xxx FB_PAGE_TOKEN=xxx")
+        print("   For GitHub Actions: Settings -> Secrets -> FB_PAGE_ID, FB_PAGE_TOKEN")
     # If running in GitHub Actions (CI), run once and exit
     if os.getenv("GITHUB_ACTIONS") == "true":
         print("Running in GitHub Actions - single check mode")
