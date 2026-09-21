@@ -68,8 +68,9 @@ def news_editor_agent(title, summary, link):
     max_retries = 3
     for attempt in range(max_retries):
         try:
+            # گۆڕدرا بۆ gemini-2.5-flash بۆ لادانی لیمیتی 20 requests/day
             response = client.models.generate_content(
-                model='gemini-3.6-flash',
+                model='gemini-2.5-flash',
                 contents=prompt,
                 config={
                     'response_mime_type': 'application/json'
@@ -79,9 +80,12 @@ def news_editor_agent(title, summary, link):
             return decision
         except Exception as e:
             err_str = str(e)
-            if ("503" in err_str or "429" in err_str) and attempt < max_retries - 1:
+            if "429" in err_str:
+                print("⚠️ Daily Quota Exhausted on this model (429)! Stopping retries.")
+                return {"should_publish": False, "reason": "Quota Exhausted"}
+            if ("503" in err_str) and attempt < max_retries - 1:
                 wait_time = (attempt + 1) * 5
-                print(f"🔄 Rate limit / Server busy, waiting {wait_time}s... (Attempt {attempt + 1}/{max_retries})")
+                print(f"🔄 Server busy, waiting {wait_time}s... (Attempt {attempt + 1}/{max_retries})")
                 time.sleep(wait_time)
                 continue
             print(f"❌ Agent Error: {e}")
@@ -149,12 +153,12 @@ async def check_and_publish_news(bot):
             print(f"\n🧠 Evaluating: {title}")
             decision = news_editor_agent(title, summary, link)
 
-            # وەستان بۆ ڕێگری لە داوای یەکنەواخت و ڕاگڕتنی 429 Error
             time.sleep(3)
 
             if not decision.get("should_publish", False):
                 print(f"🛑 Rejected: {decision.get('reason')}")
-                save_sent_hash(news_hash)
+                if decision.get("reason") != "Quota Exhausted":
+                    save_sent_hash(news_hash)
                 continue
 
             print(f"✅ Approved: {decision.get('reason')}")
