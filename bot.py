@@ -78,9 +78,10 @@ def news_editor_agent(title, summary, link):
             decision = json.loads(response.text)
             return decision
         except Exception as e:
-            if "503" in str(e) and attempt < max_retries - 1:
-                wait_time = (attempt + 1) * 3
-                print(f"🔄 Server busy (503), retrying in {wait_time}s... (Attempt {attempt + 1}/{max_retries})")
+            err_str = str(e)
+            if ("503" in err_str or "429" in err_str) and attempt < max_retries - 1:
+                wait_time = (attempt + 1) * 5
+                print(f"🔄 Rate limit / Server busy, waiting {wait_time}s... (Attempt {attempt + 1}/{max_retries})")
                 time.sleep(wait_time)
                 continue
             print(f"❌ Agent Error: {e}")
@@ -90,7 +91,7 @@ def news_editor_agent(title, summary, link):
 def post_to_facebook(caption, link):
     print(f"🔄 Attempting to post to Facebook Page ID: {FB_PAGE_ID}...")
     if not FB_PAGE_TOKEN or not FB_PAGE_ID:
-        print("⚠️ FB_PAGE_TOKEN or FB_PAGE_ID is missing in environment variables!")
+        print("⚠️ FB_PAGE_TOKEN or FB_PAGE_ID is missing!")
         return False
     try:
         full_message = f"{caption}\n\n🔗 خوێندنەوەی تەواوی بابەتەکە:\n{link}"
@@ -147,6 +148,9 @@ async def check_and_publish_news(bot):
 
             print(f"\n🧠 Evaluating: {title}")
             decision = news_editor_agent(title, summary, link)
+
+            # وەستان بۆ ڕێگری لە داوای یەکنەواخت و ڕاگڕتنی 429 Error
+            time.sleep(3)
 
             if not decision.get("should_publish", False):
                 print(f"🛑 Rejected: {decision.get('reason')}")
