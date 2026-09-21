@@ -2,7 +2,7 @@ name: Kurdish AI News Agent
 
 on:
   schedule:
-    - cron: '*/15 * * * *'  # هەموو ۱۵ خولەک جارێک دەیپشکنێت
+    - cron: '*/15 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -35,7 +35,7 @@ jobs:
         run: |
           python bot.py
 
-      - name: Save History (sent.txt)
+      - name: Save History
         if: always()
         run: |
           git config --local user.email "action@github.com"
